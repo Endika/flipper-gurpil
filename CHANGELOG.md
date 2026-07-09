@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Endika/flipper-gurpil/compare/v0.1.2...v0.1.3) (2026-07-09)
+
+
+### Bug Fixes
+
+* **ci:** build the release FAP against stable SDK channel not dev ([fe0e0ee](https://github.com/Endika/flipper-gurpil/commit/fe0e0ee10d0372acd284cc03f4178bd2f2f88477))
+
 ## [0.1.2](https://github.com/Endika/flipper-gurpil/compare/v0.1.1...v0.1.2) (2026-07-09)
 
 
