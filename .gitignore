@@ -2,5 +2,5 @@
 *.fap
 build/
 .superpowers
-test_gurpil
+test_gurpil*
 local.mk

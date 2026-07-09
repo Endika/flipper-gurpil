@@ -13,6 +13,7 @@ App(
     sources=[
         "main.c",
         "src/domain/version_info.c",
+        "src/domain/shapes.c",
         "src/app/gurpil_app.c",
     ],
 )
