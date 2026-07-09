@@ -19,6 +19,7 @@ App(
         "src/domain/endless.c",
         "src/domain/record.c",
         "src/application/game.c",
+        "src/platform/random_port.c",
         "src/app/gurpil_app.c",
     ],
 )

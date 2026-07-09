@@ -119,13 +119,18 @@ endif
 format:
 	clang-format -i $(FORMAT_FILES)
 
+# unusedFunction suppressions: main.c's entry point and platform_random_seed are each only
+# called from code outside this host-analyzed source set (the firmware loader; the Task 11
+# app wiring, respectively) — real callers exist, cppcheck just can't see them here.
 linter:
 	cppcheck --enable=all --inline-suppr -I. \
 		--suppress=missingIncludeSystem \
 		--suppress=unusedFunction:main.c \
+		--suppress=unusedFunction:src/platform/random_port.c \
 		src/domain/version_info.c src/domain/shapes.c src/domain/terrain.c src/domain/sim.c \
 		src/domain/endless.c src/domain/record.c \
 		src/application/game.c \
+		src/platform/random_port.c \
 		src/app/gurpil_app.c main.c \
 		tests/test_smoke.c tests/test_shapes.c tests/test_terrain.c tests/test_sim.c \
 		tests/test_endless.c tests/test_record.c tests/test_game.c
