@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/Endika/flipper-gurpil/compare/v0.1.5...v0.1.6) (2026-07-09)
+
+
+### Bug Fixes
+
+* **ui:** size the checkpoint-flash buffer for the runtime bonus to satisfy -Werror=format-truncation ([951400e](https://github.com/Endika/flipper-gurpil/commit/951400eed49b63a2b4d91bfc195757aff7a303df))
+
 ## [0.1.5](https://github.com/Endika/flipper-gurpil/compare/v0.1.4...v0.1.5) (2026-07-09)
 
 
