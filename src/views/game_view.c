@@ -59,7 +59,7 @@ static void render_vehicle(Canvas *canvas, const GameState *game) {
         default:
             canvas_draw_triangle(canvas, vx, vy - VEHICLE_WHEEL_RADIUS * 2,
                                  VEHICLE_WHEEL_RADIUS * 2, VEHICLE_WHEEL_RADIUS * 2,
-                                 CanvasDirectionNorth);
+                                 CanvasDirectionBottomToTop);
             break;
     }
 }
