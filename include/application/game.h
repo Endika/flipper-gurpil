@@ -4,6 +4,7 @@
 #include "include/domain/shapes.h"
 #include "include/domain/sim.h"
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /*
@@ -25,6 +26,10 @@ typedef struct {
     EndlessState endless;
     ShapeId shape;
     uint32_t seed;
+    // endless.checkpoints_hit as of just before the most recent game_tick call, so
+    // game_checkpoint_just_hit can detect a same-tick increment without the render layer
+    // needing its own frame-diffing state.
+    uint32_t checkpoints_hit_before_tick;
 } GameState;
 
 /* Resets `game` to a fresh run: stores `seed` (used by every later sim_step); sim_init and
@@ -55,3 +60,28 @@ int game_is_over(const GameState *game);
 
 /* Terrain height (game units) under the vehicle at its current position. */
 int16_t game_vehicle_y(const GameState *game);
+
+/* Current speed as 0..1000 (permille) of the fastest speed a run can ever reach
+ * (SIM_MAX_SPEED_FP, see domain/sim.h) — the pure value the HUD speed bar fills with, so
+ * changing the mounted shape visibly moves the bar. 0 while stalled/stopped; 1000 only at the
+ * theoretical max (an ideal shape on its best terrain, fully eased up to speed). */
+uint16_t game_speed_permille(const GameState *game);
+
+/* True exactly when the most recent game_tick call crossed at least one checkpoint (i.e.
+ * endless.checkpoints_hit increased during that call) — the trigger for a brief on-screen
+ * "+Ns" flash. False before the first tick and on every tick that doesn't cross a checkpoint. */
+bool game_checkpoint_just_hit(const GameState *game);
+
+/* The ideal wheel shape (shape_best_for) for the terrain a short lookahead ahead of the
+ * vehicle's current position — the shape the tutorial hint suggests mounting. */
+ShapeId game_hint_shape(const GameState *game);
+
+/* True while the run is still within the tutorial window (an early stretch of distance, long
+ * enough to cover a handful of checkpoints) during which the hint icon should be shown; false
+ * once the player has travelled far enough that the hint fades out. */
+bool game_hint_active(const GameState *game);
+
+/* True once this run's distance has strictly exceeded `pre_run_best` — the best distance
+ * recorded before this run started. GameState never stores or reads the persisted best itself;
+ * the caller (which owns best_store) supplies it. */
+bool game_is_new_best(const GameState *game, int32_t pre_run_best);

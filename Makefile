@@ -109,7 +109,7 @@ record.o: src/domain/record.c include/domain/record.h
 test_record.o: tests/test_record.c include/domain/record.h
 	$(CC) $(CFLAGS) -c tests/test_record.c -o test_record.o
 
-game.o: src/application/game.c include/application/game.h include/domain/sim.h include/domain/endless.h include/domain/shapes.h include/domain/terrain_kind.h
+game.o: src/application/game.c include/application/game.h include/domain/sim.h include/domain/endless.h include/domain/shapes.h include/domain/terrain.h include/domain/terrain_kind.h
 	$(CC) $(CFLAGS) -c src/application/game.c -o game.o
 
 test_game.o: tests/test_game.c include/application/game.h include/domain/sim.h include/domain/endless.h include/domain/shapes.h include/domain/terrain.h include/domain/terrain_kind.h

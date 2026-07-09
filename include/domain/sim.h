@@ -20,6 +20,12 @@
 enum {
     SIM_FP_SHIFT = 8,               // fractional bits of the fixed-point scale.
     SIM_FP_ONE = 1 << SIM_FP_SHIFT, // fixed-point representation of the integer value 1.
+
+    // The fastest speed_fp a run can ever reach: shape_speed_factor's own maximum (FACTOR_BEST
+    // == 256, i.e. 1.0x) applied to sim.c's base speed. sim.c's BASE_SPEED_FP aliases this same
+    // value (single source of truth) since a caller outside sim.c (application/game.c's
+    // game_speed_permille) needs it too, to scale the current speed onto a 0..1000 HUD gauge.
+    SIM_MAX_SPEED_FP = 8 << SIM_FP_SHIFT,
 };
 
 typedef struct {

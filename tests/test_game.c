@@ -29,10 +29,22 @@
 // How many post-game-over ticks to drive in the freeze check.
 #define POST_OVER_TICK_COUNT 50u
 
-// endless.c's START_TIME_MS is private to that module; mirrored here (as test_endless.c also
-// does) purely to assert game_start's resulting state. Keep in sync if endless.c's tuning
-// changes.
-#define EXPECT_START_TIME_MS 10000u
+// ENDLESS_START_TIME_MS is public in endless.h (single source of truth); asserted directly
+// against game_start's resulting state below.
+
+// Ticks driven before sampling game_speed_permille, so speed_fp has eased close enough to its
+// target for the high/low assertions to hold comfortably (see sim.c's SPEED_EASE_DIVISOR).
+#define SPEED_RAMP_TICK_COUNT 30u
+
+// Comfortable margins for the speed-bar permille assertions: well above "empty" for a
+// best-matched shape, well below "full" for a stalled one, with room to spare either way.
+#define SPEED_PERMILLE_HIGH_THRESHOLD 700u
+#define SPEED_PERMILLE_LOW_THRESHOLD 100u
+
+// How many consecutive game-x units must share TerrainObstacle for the stable-zone search below
+// to be usable (mirrors test_sim.c's own STABLE_SPAN/SEARCH_LIMIT pattern).
+#define OBSTACLE_STABLE_SPAN 12
+#define OBSTACLE_SEARCH_LIMIT 8000
 
 // Drives `game` with a per-tick shape chosen as the best for the terrain under the vehicle's
 // current position, until endless goes Over or MAX_TICKS is exhausted. Real terrain_at/
@@ -120,12 +132,118 @@ static void test_start_initializes_coherent_state(void) {
     game_start(&game, SEED_A);
 
     assert(game_distance(&game) == 0);
-    assert(game_time_left(&game) == EXPECT_START_TIME_MS);
+    assert(game_time_left(&game) == (uint32_t)ENDLESS_START_TIME_MS);
     assert(!game_is_over(&game));
     assert(game.shape == ShapeCircle);
     assert(game.endless.phase == EndlessRunning);
     // x=0 is always the flat opening zone (terrain.c), so the vehicle starts at that height.
     assert(game_vehicle_y(&game) == terrain_at(SEED_A, 0).height);
+}
+
+// Scans forward from x=0 for the first x where TerrainObstacle holds for at least `span`
+// consecutive positions — mirrors test_sim.c's find_stable_zone_start. Real terrain_at output,
+// no test seam.
+static int32_t find_stable_obstacle_start(uint32_t seed, int32_t span) {
+    for (int32_t x = 0; x < OBSTACLE_SEARCH_LIMIT; x++) {
+        int32_t offset = 0;
+        while (offset < span && terrain_at(seed, x + offset).kind == TerrainObstacle) {
+            offset++;
+        }
+        if (offset == span) {
+            return x;
+        }
+    }
+    assert(0 && "no stable obstacle zone found within OBSTACLE_SEARCH_LIMIT");
+    return -1;
+}
+
+static void test_speed_permille_is_high_for_a_best_matched_shape(void) {
+    GameState game;
+    game_start(&game, SEED_A);
+    // x=0's opening zone is always flat, and circle is flat's best shape.
+    game_set_shape(&game, ShapeCircle);
+    for (uint32_t i = 0; i < SPEED_RAMP_TICK_COUNT; i++) {
+        game_tick(&game, TICK_MS);
+    }
+
+    assert(game_speed_permille(&game) > SPEED_PERMILLE_HIGH_THRESHOLD);
+}
+
+static void test_speed_permille_is_near_zero_for_a_stalled_shape(void) {
+    int32_t obstacle_x = find_stable_obstacle_start(SEED_A, OBSTACLE_STABLE_SPAN);
+
+    GameState game;
+    game_start(&game, SEED_A);
+    // Jump the sim straight to the obstacle zone (public fields, same pattern as test_sim.c's
+    // state_at) instead of ticking there tick by tick.
+    game.sim.distance_fp = obstacle_x << SIM_FP_SHIFT;
+    game.sim.vehicle_y = terrain_at(SEED_A, obstacle_x).height;
+    game_set_shape(&game, ShapeCircle); // circle stalls on obstacle (shapes.c's FACTOR_STALL).
+    for (uint32_t i = 0; i < SPEED_RAMP_TICK_COUNT; i++) {
+        game_tick(&game, TICK_MS);
+    }
+
+    assert(game_speed_permille(&game) < SPEED_PERMILLE_LOW_THRESHOLD);
+}
+
+static void test_checkpoint_just_hit_is_true_only_on_the_crossing_tick(void) {
+    GameState game;
+    game_start(&game, SEED_A);
+
+    assert(!game_checkpoint_just_hit(&game)); // nothing crossed before the first tick.
+
+    // Jump distance to exactly the first checkpoint threshold, then tick: endless_tick's own
+    // distance-max means this single tick both registers the jump and crosses the checkpoint.
+    game.sim.distance_fp = ENDLESS_CHECKPOINT_SPACING << SIM_FP_SHIFT;
+    game_tick(&game, TICK_MS);
+    assert(game_checkpoint_just_hit(&game));
+
+    // The very next tick, still short of the next checkpoint, must not report a fresh crossing.
+    game_tick(&game, TICK_MS);
+    assert(!game_checkpoint_just_hit(&game));
+}
+
+static void test_hint_shape_matches_best_for_upcoming_terrain(void) {
+    GameState game;
+    game_start(&game, SEED_A);
+
+    // x=0's opening zone is flat and at least ZONE_LENGTH_MIN=20 units long (terrain.c), so the
+    // hint's small lookahead still lands inside that same flat zone right at a run's start.
+    assert(game_hint_shape(&game) == shape_best_for(TerrainFlat));
+}
+
+static void test_hint_active_at_start_then_turns_off_with_distance(void) {
+    GameState game;
+    game_start(&game, SEED_A);
+    assert(game_hint_active(&game));
+
+    // Drive a well-played run, adapting shape every tick, until the hint switches off or the run
+    // ends — whichever comes first. A well-played run outlasts the (finite) tutorial window, so
+    // seeing hint_active go false proves the hint actually turns off with distance rather than
+    // just staying on for the whole run.
+    bool saw_hint_turn_off = false;
+    for (uint32_t i = 0; i < MAX_TICKS && !game_is_over(&game); i++) {
+        int32_t x = game.sim.distance_fp >> SIM_FP_SHIFT;
+        ShapeId best = shape_best_for(terrain_at(SEED_A, x).kind);
+        game_set_shape(&game, best);
+        game_tick(&game, TICK_MS);
+        if (!game_hint_active(&game)) {
+            saw_hint_turn_off = true;
+            break;
+        }
+    }
+
+    assert(saw_hint_turn_off);
+}
+
+static void test_is_new_best_true_only_when_distance_exceeds_pre_run_best(void) {
+    GameState game;
+    game_start(&game, SEED_A);
+    game.endless.distance = 100; // direct field set: simulate a run already at 100m.
+
+    assert(game_is_new_best(&game, 50));   // strictly beats the old best.
+    assert(!game_is_new_best(&game, 100)); // a tie is not a new best.
+    assert(!game_is_new_best(&game, 150)); // still short of the old best.
 }
 
 int main(void) {
@@ -140,6 +258,24 @@ int main(void) {
 
     test_start_initializes_coherent_state();
     printf("test_start_initializes_coherent_state: PASS\n");
+
+    test_speed_permille_is_high_for_a_best_matched_shape();
+    printf("test_speed_permille_is_high_for_a_best_matched_shape: PASS\n");
+
+    test_speed_permille_is_near_zero_for_a_stalled_shape();
+    printf("test_speed_permille_is_near_zero_for_a_stalled_shape: PASS\n");
+
+    test_checkpoint_just_hit_is_true_only_on_the_crossing_tick();
+    printf("test_checkpoint_just_hit_is_true_only_on_the_crossing_tick: PASS\n");
+
+    test_hint_shape_matches_best_for_upcoming_terrain();
+    printf("test_hint_shape_matches_best_for_upcoming_terrain: PASS\n");
+
+    test_hint_active_at_start_then_turns_off_with_distance();
+    printf("test_hint_active_at_start_then_turns_off_with_distance: PASS\n");
+
+    test_is_new_best_true_only_when_distance_exceeds_pre_run_best();
+    printf("test_is_new_best_true_only_when_distance_exceeds_pre_run_best: PASS\n");
 
     return 0;
 }

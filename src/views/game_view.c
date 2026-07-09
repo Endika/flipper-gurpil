@@ -36,6 +36,47 @@ enum {
 static const char *const HUD_DISTANCE_FORMAT = "%ldm";
 static const char *const HUD_TIME_LEFT_FORMAT = "%lus";
 
+// Speed bar: a small horizontal gauge that fills with game_speed_permille(game), so changing the
+// mounted wheel shape visibly moves it — the mechanic was otherwise invisible. Placed in the top
+// strip, a screen row band that is always sky (never ground): the tallest terrain
+// (TERRAIN_HEIGHT_MAX) still draws no higher than screen row GURPIL_GROUND_BASELINE_Y -
+// TERRAIN_HEIGHT_MAX == 23, so nothing here ever needs to erase ground behind it first.
+enum {
+    SPEED_BAR_X = 40,
+    SPEED_BAR_Y = 10,
+    SPEED_BAR_WIDTH = 48,
+    SPEED_BAR_HEIGHT = 5,
+    SPEED_BAR_INNER_MARGIN = 1,      // frame thickness the fill sits inside of, px.
+    SPEED_BAR_PERMILLE_SCALE = 1000, // matches game_speed_permille's own 0..1000 output scale.
+};
+
+// Tutorial hint icon: the ideal shape for the upcoming terrain (game_hint_shape), shown inside a
+// small highlight frame near the HUD while game_hint_active holds. Same guaranteed-sky band as
+// the speed bar above.
+enum {
+    HINT_ICON_X = 8,
+    HINT_ICON_Y = 17,
+    HINT_ICON_RADIUS = 3,
+    HINT_ICON_FRAME_MARGIN = 2, // padding between the glyph and its highlight frame, px.
+};
+
+// Checkpoint marker: a small flag at the next checkpoint's on-screen column, so the player can
+// see how close the next time bonus is (and aim their shape choice at the terrain around it).
+enum {
+    CHECKPOINT_FLAG_HEIGHT = 10, // pole height above the terrain at the checkpoint's column, px.
+    CHECKPOINT_FLAG_PENNANT_SIZE = 3, // pennant width/height at the pole's top, px.
+};
+
+// Checkpoint flash: a brief "+Ns" readout near the timer when a checkpoint was just crossed
+// (show_checkpoint_flash, driven by the caller's own countdown — see game_view.h). Reuses
+// ENDLESS_CHECKPOINT_BONUS_MS (endless.h) rather than a duplicated literal, so the text always
+// matches the actual bonus granted.
+enum {
+    CHECKPOINT_FLASH_Y = HUD_TEXT_Y + 9, // just below the timer readout, same corner.
+    MS_PER_SECOND = 1000,
+};
+static const char *const CHECKPOINT_FLASH_FORMAT = "+%lds";
+
 // Game-over overlay: an opaque panel, centered on screen, that first erases the busy scrolling
 // terrain/vehicle behind it (canvas_draw_box in ColorWhite) before the outcome text is drawn on
 // top in ColorBlack — the previous overlay drew straight over the silhouette and became
@@ -43,15 +84,19 @@ static const char *const HUD_TIME_LEFT_FORMAT = "%lus";
 enum {
     GAME_OVER_PANEL_WIDTH = 104,
     GAME_OVER_PANEL_HEIGHT = 54,
-    GAME_OVER_TITLE_Y = 16,
-    GAME_OVER_DISTANCE_Y = 30,
-    GAME_OVER_BEST_Y = 42,
+    // Five stacked text rows, evenly spaced 10px apart; kept explicit (not a spacing macro) to
+    // match this file's existing style, but the shared rhythm is intentional.
+    GAME_OVER_TITLE_Y = 13,
+    GAME_OVER_DISTANCE_Y = 23,
+    GAME_OVER_BEST_Y = 33,
+    GAME_OVER_NEW_BEST_Y = 43, // only drawn when the run's distance beat the pre-run best.
     GAME_OVER_PROMPT_Y = 53,
 };
 
 static const char *const GAME_OVER_TITLE_TEXT = "Game Over";
 static const char *const GAME_OVER_DISTANCE_FORMAT = "Distance: %ldm";
 static const char *const GAME_OVER_BEST_FORMAT = "Best: %ldm";
+static const char *const GAME_OVER_NEW_BEST_TEXT = "New best!";
 static const char *const GAME_OVER_PROMPT_TEXT = "OK: menu";
 
 static void render_terrain(Canvas *canvas, const GameState *game) {
@@ -62,6 +107,31 @@ static void render_terrain(Canvas *canvas, const GameState *game) {
         uint8_t ground_y = terrain_height_to_screen_y(sample.height);
         canvas_draw_line(canvas, column, ground_y, column, GURPIL_SCREEN_HEIGHT - 1);
     }
+}
+
+// Draws a small flag (pole + pennant) at the next checkpoint's on-screen column, if it is
+// currently ahead of the vehicle and still on screen. The pole always sits entirely above the
+// terrain's own ground_y at that column (drawn by render_terrain above, running from ground_y
+// down to the bottom row), so the two never overlap regardless of terrain height.
+static void render_checkpoint_marker(Canvas *canvas, const GameState *game) {
+    int32_t distance = game_distance(game);
+    int32_t next_checkpoint = game->endless.next_checkpoint;
+    int32_t column = GURPIL_VEHICLE_COLUMN + (next_checkpoint - distance);
+
+    if (column < 0 || column >= GURPIL_SCREEN_WIDTH) {
+        return; // checkpoint isn't on screen (yet).
+    }
+
+    TerrainSample sample = terrain_at(game->seed, next_checkpoint);
+    uint8_t ground_y = terrain_height_to_screen_y(sample.height);
+    int32_t pole_top_y = ground_y > CHECKPOINT_FLAG_HEIGHT ? ground_y - CHECKPOINT_FLAG_HEIGHT : 0;
+
+    canvas_draw_line(canvas, column, pole_top_y, column, ground_y);
+    canvas_draw_line(canvas, column, pole_top_y, column + CHECKPOINT_FLAG_PENNANT_SIZE,
+                     pole_top_y + CHECKPOINT_FLAG_PENNANT_SIZE / 2);
+    canvas_draw_line(canvas, column + CHECKPOINT_FLAG_PENNANT_SIZE,
+                     pole_top_y + CHECKPOINT_FLAG_PENNANT_SIZE / 2, column,
+                     pole_top_y + CHECKPOINT_FLAG_PENNANT_SIZE);
 }
 
 // Wheel: one distinct glyph per ShapeId, all centered on (vx, wheel_y) so swapping shapes never
@@ -162,7 +232,71 @@ static void render_hud(Canvas *canvas, const GameState *game) {
                             text);
 }
 
-static void render_game_over(Canvas *canvas, const GameState *game, int32_t best) {
+// A framed gauge that fills with game_speed_permille(game) — the current speed as a fraction of
+// the fastest attainable speed. Mounting a shape that matches the terrain ahead should visibly
+// push the fill toward full; a mismatched/stalled shape should visibly drain it toward empty.
+static void render_speed_bar(Canvas *canvas, const GameState *game) {
+    uint16_t permille = game_speed_permille(game);
+    int32_t inner_width = SPEED_BAR_WIDTH - 2 * SPEED_BAR_INNER_MARGIN;
+    int32_t fill_width = (inner_width * (int32_t)permille) / SPEED_BAR_PERMILLE_SCALE;
+
+    canvas_draw_frame(canvas, SPEED_BAR_X, SPEED_BAR_Y, SPEED_BAR_WIDTH, SPEED_BAR_HEIGHT);
+    if (fill_width > 0) {
+        canvas_draw_box(canvas, SPEED_BAR_X + SPEED_BAR_INNER_MARGIN,
+                        SPEED_BAR_Y + SPEED_BAR_INNER_MARGIN, fill_width,
+                        SPEED_BAR_HEIGHT - 2 * SPEED_BAR_INNER_MARGIN);
+    }
+}
+
+// The tutorial shape hint: while game_hint_active holds, draws the ideal upcoming shape
+// (game_hint_shape) as a small glyph inside a highlight frame, so a new player has a concrete
+// "use THIS wheel" answer instead of guessing. Reuses the same per-shape silhouettes as
+// render_wheel, at a small fixed size, with no spin (it's a static suggestion, not the vehicle).
+static void render_hint_icon(Canvas *canvas, const GameState *game) {
+    if (!game_hint_active(game)) {
+        return;
+    }
+
+    int32_t cx = HINT_ICON_X;
+    int32_t cy = HINT_ICON_Y;
+    int32_t r = HINT_ICON_RADIUS;
+
+    switch (game_hint_shape(game)) {
+        case ShapeCircle:
+            canvas_draw_circle(canvas, cx, cy, r);
+            break;
+        case ShapeLine:
+            canvas_draw_line(canvas, cx - r, cy, cx + r, cy);
+            break;
+        case ShapeSquare:
+            canvas_draw_frame(canvas, cx - r, cy - r, r * 2, r * 2);
+            break;
+        case ShapeTriangle:
+        case ShapeCount:
+        default:
+            canvas_draw_triangle(canvas, cx, cy + r, r * 2, r * 2, CanvasDirectionBottomToTop);
+            break;
+    }
+
+    int32_t margin = HINT_ICON_FRAME_MARGIN;
+    canvas_draw_frame(canvas, cx - r - margin, cy - r - margin, (r + margin) * 2, (r + margin) * 2);
+}
+
+// A brief "+Ns" readout near the timer, shown while the caller's own flash countdown
+// (show_checkpoint_flash) is still running — see game_view.h's module comment for why the
+// countdown itself lives in the caller rather than here.
+static void render_checkpoint_flash(Canvas *canvas) {
+    char text[8];
+
+    canvas_set_font(canvas, FontSecondary);
+    snprintf(text, sizeof(text), CHECKPOINT_FLASH_FORMAT,
+             (long)(ENDLESS_CHECKPOINT_BONUS_MS / MS_PER_SECOND));
+    canvas_draw_str_aligned(canvas, GURPIL_SCREEN_WIDTH - 1, CHECKPOINT_FLASH_Y, AlignRight,
+                            AlignBottom, text);
+}
+
+static void render_game_over(Canvas *canvas, const GameState *game, int32_t best,
+                             bool is_new_best) {
     char text[24];
 
     int32_t panel_x = (GURPIL_SCREEN_WIDTH - GAME_OVER_PANEL_WIDTH) / 2;
@@ -188,18 +322,30 @@ static void render_game_over(Canvas *canvas, const GameState *game, int32_t best
     canvas_draw_str_aligned(canvas, GURPIL_SCREEN_WIDTH / 2, GAME_OVER_BEST_Y, AlignCenter,
                             AlignCenter, text);
 
+    if (is_new_best) {
+        canvas_draw_str_aligned(canvas, GURPIL_SCREEN_WIDTH / 2, GAME_OVER_NEW_BEST_Y, AlignCenter,
+                                AlignCenter, GAME_OVER_NEW_BEST_TEXT);
+    }
+
     canvas_draw_str_aligned(canvas, GURPIL_SCREEN_WIDTH / 2, GAME_OVER_PROMPT_Y, AlignCenter,
                             AlignCenter, GAME_OVER_PROMPT_TEXT);
 }
 
-void gurpil_render(Canvas *canvas, const GameState *game, int32_t best, uint32_t frame) {
+void gurpil_render(Canvas *canvas, const GameState *game, int32_t best, uint32_t frame,
+                   bool show_checkpoint_flash, bool is_new_best) {
     canvas_clear(canvas);
 
     render_terrain(canvas, game);
+    render_checkpoint_marker(canvas, game);
     render_vehicle(canvas, game, frame);
     render_hud(canvas, game);
+    render_speed_bar(canvas, game);
+    render_hint_icon(canvas, game);
+    if (show_checkpoint_flash) {
+        render_checkpoint_flash(canvas);
+    }
 
     if (game_is_over(game)) {
-        render_game_over(canvas, game, best);
+        render_game_over(canvas, game, best, is_new_best);
     }
 }

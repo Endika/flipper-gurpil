@@ -3,13 +3,13 @@
 #include <assert.h>
 #include <stdio.h>
 
-// START_TIME_MS/CHECKPOINT_BONUS_MS/CHECKPOINT_SPACING/MAX_TIME_MS live in endless.c as an
-// anonymous enum, so tests mirror the values here rather than reaching into the module's
-// internals. Kept in one place (this comment) to make future drift obvious if endless.c changes.
-#define EXPECT_START_TIME_MS 10000u
-#define EXPECT_CHECKPOINT_BONUS_MS 3000u
-#define EXPECT_CHECKPOINT_SPACING 50
-#define EXPECT_MAX_TIME_MS 15000u
+// ENDLESS_START_TIME_MS/ENDLESS_CHECKPOINT_BONUS_MS/ENDLESS_CHECKPOINT_SPACING/
+// ENDLESS_MAX_TIME_MS are public in endless.h (single source of truth); tests reference them
+// directly instead of mirroring the values.
+#define EXPECT_START_TIME_MS ((uint32_t)ENDLESS_START_TIME_MS)
+#define EXPECT_CHECKPOINT_BONUS_MS ((uint32_t)ENDLESS_CHECKPOINT_BONUS_MS)
+#define EXPECT_CHECKPOINT_SPACING ENDLESS_CHECKPOINT_SPACING
+#define EXPECT_MAX_TIME_MS ((uint32_t)ENDLESS_MAX_TIME_MS)
 
 static void test_init_sets_expected_resting_state(void) {
     EndlessState state;

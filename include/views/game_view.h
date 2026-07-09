@@ -24,10 +24,23 @@
  * fully controls when it advances (it must freeze once the run is over, and must not run at all
  * while the Game scene isn't entered — see src/views/gurpil_game_view.c and
  * src/scenes/gurpil_scene_game.c).
+ *
+ * Seam for the checkpoint flash: `show_checkpoint_flash` is computed by the caller (which owns a
+ * millisecond countdown in its own view model, decremented every tick — see
+ * gurpil_game_view_tick) rather than derived here, since a stateless render function has no way
+ * to remember "a checkpoint was crossed a few frames ago" on its own.
+ *
+ * Seam for "New best!": `is_new_best` is computed by the caller from the pure
+ * game_is_new_best(game, pre_run_best) predicate (application/game.h) against the *pre-run*
+ * best, since by the time a frame renders the game-over panel, the caller may already have
+ * bumped the persisted `best` it passes in to match this run's own distance.
  */
 
-/* Draws one frame: the scrolling terrain silhouette, the rider-on-a-scooter vehicle with its
- * currently mounted wheel shape spinning per `frame`, a distance+timer HUD, and — once
- * game_is_over(game) — an opaque game-over panel showing the run's final distance alongside
- * `best`. */
-void gurpil_render(Canvas *canvas, const GameState *game, int32_t best, uint32_t frame);
+/* Draws one frame: the scrolling terrain silhouette, the next checkpoint's marker (if on
+ * screen), the rider-on-a-scooter vehicle with its currently mounted wheel shape spinning per
+ * `frame`, a distance+timer HUD, a speed bar (game_speed_permille), the tutorial shape hint
+ * (while game_hint_active), a brief "+Ns" flash when `show_checkpoint_flash` is set, and — once
+ * game_is_over(game) — an opaque game-over panel showing the run's final distance, `best`, and
+ * "New best!" when `is_new_best` is set. */
+void gurpil_render(Canvas *canvas, const GameState *game, int32_t best, uint32_t frame,
+                   bool show_checkpoint_flash, bool is_new_best);

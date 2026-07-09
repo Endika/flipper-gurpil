@@ -15,12 +15,16 @@ static void gurpil_scene_game_timer_callback(void *context) {
 
     bool became_over = gurpil_game_view_tick(app->game_view, GURPIL_GAME_TICK_MS);
     if (became_over) {
-        int32_t distance = gurpil_game_view_distance(app->game_view);
-        if (distance > app->best) {
-            app->best = distance;
+        // pre_run_best is app->best as it stood before this run started: captured now, before
+        // any bump below, so the game-over panel's "New best!" reflects this run's own result
+        // rather than always being true once app->best has already been updated to match it.
+        int32_t pre_run_best = app->best;
+        bool is_new_best = gurpil_game_view_is_new_best(app->game_view, pre_run_best);
+        if (is_new_best) {
+            app->best = gurpil_game_view_distance(app->game_view);
             best_store_save(app->best);
         }
-        gurpil_game_view_set_best(app->game_view, app->best);
+        gurpil_game_view_set_best(app->game_view, app->best, is_new_best);
     }
 }
 

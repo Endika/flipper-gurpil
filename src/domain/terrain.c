@@ -7,8 +7,11 @@ enum {
     ZONE_LENGTH_MAX = 60,
     ZONE_LENGTH_SPAN = ZONE_LENGTH_MAX - ZONE_LENGTH_MIN + 1,
 
-    // The first zones are always flat, so every run starts gentle.
-    OPENING_ZONE_COUNT = 2,
+    // The very first zone is always flat, so every run starts gentle; the ramp weights (mostly
+    // flat/rocky at low progress, see EASY_WEIGHT_* below) take over from the second zone, so
+    // shape choice (circle vs line) already matters within the first stretch rather than only
+    // far out.
+    OPENING_ZONE_COUNT = 1,
 
     // Difficulty ramps linearly from the "easy" kind weights (x = 0) to the "hard" weights
     // (x >= RAMP_DISTANCE_UNITS); beyond that distance the hard weights hold steady.

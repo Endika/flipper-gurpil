@@ -8,6 +8,13 @@
 #include <input/input.h>
 #include <stdlib.h>
 
+// How long the "+Ns" checkpoint flash (game_view.h's show_checkpoint_flash) stays on screen
+// after a checkpoint is crossed. A real-time duration, not a tick count, so it stays correct
+// regardless of the Game scene's own FuriTimer period.
+enum {
+    CHECKPOINT_FLASH_DURATION_MS = 500,
+};
+
 // Everything the draw callback, the input callback and gurpil_game_view_tick touch lives inside
 // this model rather than a hand-rolled FuriMutex+struct pair: view_get_model/view_commit_model
 // (via view_allocate_model(..., ViewModelTypeLocking, ...) below) already serialize access
@@ -18,8 +25,11 @@ typedef struct {
     GameState game;
     uint32_t frame; // per-tick counter driving the wheel-spin animation; reset per run.
     int32_t best;
+    bool is_new_best;       // whether the game-over panel should show "New best!"; reset per run.
     bool game_over_handled; // true once this run's game-over has been scored, so
                             // gurpil_game_view_tick reports it exactly once.
+    uint32_t checkpoint_flash_remaining_ms; // >0 while show_checkpoint_flash should render;
+                                            // ticks down by dt_ms, reset on a fresh crossing.
 } GurpilGameViewModel;
 
 struct GurpilGameView {
@@ -29,7 +39,8 @@ struct GurpilGameView {
 
 static void gurpil_game_view_draw_callback(Canvas *canvas, void *model) {
     const GurpilGameViewModel *m = model;
-    gurpil_render(canvas, &m->game, m->best, m->frame);
+    gurpil_render(canvas, &m->game, m->best, m->frame, m->checkpoint_flash_remaining_ms > 0,
+                  m->is_new_best);
 }
 
 static GurpilKey gurpil_key_from_input(InputKey key) {
@@ -114,7 +125,9 @@ void gurpil_game_view_start_run(GurpilGameView *instance, uint32_t seed, int32_t
     game_start(&model->game, seed);
     model->frame = 0;
     model->best = best;
+    model->is_new_best = false;
     model->game_over_handled = false;
+    model->checkpoint_flash_remaining_ms = 0;
     view_commit_model(instance->view, true);
 }
 
@@ -125,6 +138,15 @@ bool gurpil_game_view_tick(GurpilGameView *instance, uint32_t dt_ms) {
     if (!game_is_over(&model->game)) {
         game_tick(&model->game, dt_ms);
         model->frame++;
+
+        if (game_checkpoint_just_hit(&model->game)) {
+            model->checkpoint_flash_remaining_ms = CHECKPOINT_FLASH_DURATION_MS;
+        } else if (model->checkpoint_flash_remaining_ms > dt_ms) {
+            model->checkpoint_flash_remaining_ms -= dt_ms;
+        } else {
+            model->checkpoint_flash_remaining_ms = 0;
+        }
+
         if (game_is_over(&model->game) && !model->game_over_handled) {
             model->game_over_handled = true;
             became_over = true;
@@ -142,8 +164,16 @@ int32_t gurpil_game_view_distance(GurpilGameView *instance) {
     return distance;
 }
 
-void gurpil_game_view_set_best(GurpilGameView *instance, int32_t best) {
+bool gurpil_game_view_is_new_best(GurpilGameView *instance, int32_t pre_run_best) {
+    GurpilGameViewModel *model = view_get_model(instance->view);
+    bool is_new_best = game_is_new_best(&model->game, pre_run_best);
+    view_commit_model(instance->view, false);
+    return is_new_best;
+}
+
+void gurpil_game_view_set_best(GurpilGameView *instance, int32_t best, bool is_new_best) {
     GurpilGameViewModel *model = view_get_model(instance->view);
     model->best = best;
+    model->is_new_best = is_new_best;
     view_commit_model(instance->view, true);
 }

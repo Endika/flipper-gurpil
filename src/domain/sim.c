@@ -5,8 +5,10 @@
 enum {
     // Base speed at shape_speed_factor's full value (256 == 1.0x), in fixed-point game-x units
     // per second. Every shape/terrain combination scales this down (or, in principle, up) via
-    // the factor looked up below.
-    BASE_SPEED_FP = 8 << SIM_FP_SHIFT,
+    // the factor looked up below. Aliases SIM_MAX_SPEED_FP (sim.h) — the single source of truth
+    // for "the fastest speed_fp a run can ever reach" — since factor 256 is also
+    // shape_speed_factor's own maximum.
+    BASE_SPEED_FP = SIM_MAX_SPEED_FP,
 
     // shape_speed_factor's fixed-point scale (256 == 1.0x); dividing by this applies the factor.
     SHAPE_FACTOR_SCALE = 256,

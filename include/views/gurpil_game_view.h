@@ -42,7 +42,11 @@ void gurpil_game_view_start_run(GurpilGameView *instance, uint32_t seed, int32_t
 
 /* Advances the run by one fixed `dt_ms` step and requests a redraw — called every tick from the
  * Game scene's own FuriTimer, unconditionally (a no-op once the run is over, aside from still
- * requesting the redraw, so the frozen final frame keeps repainting like any other view).
+ * requesting the redraw, so the frozen final frame keeps repainting like any other view). Also
+ * refreshes the checkpoint-flash countdown: reset to its full duration whenever
+ * game_checkpoint_just_hit fires, ticked down by `dt_ms` otherwise, so the on-screen "+Ns" flash
+ * (game_view.h's `show_checkpoint_flash`) stays lit for a short, fixed real-time span rather than
+ * a tick count tied to any particular timer period.
  *
  * Returns true exactly once per run, on the tick the countdown reaches 0, so the caller can score
  * and persist the run's distance without any risk of double-scoring on later ticks. */
@@ -51,6 +55,13 @@ bool gurpil_game_view_tick(GurpilGameView *instance, uint32_t dt_ms);
 /* The run's distance so far (or its final distance, once over). */
 int32_t gurpil_game_view_distance(GurpilGameView *instance);
 
-/* Updates the `best` shown in the HUD/game-over overlay — called right after
- * gurpil_game_view_tick reports the run just ended, once the caller has compared/persisted it. */
-void gurpil_game_view_set_best(GurpilGameView *instance, int32_t best);
+/* True once this run's distance has strictly exceeded `pre_run_best` — wraps the pure
+ * game_is_new_best predicate (application/game.h). Intended to be read right after
+ * gurpil_game_view_tick reports the run just ended, with `pre_run_best` the best recorded
+ * *before* this run started (i.e. before the caller potentially bumps its own persisted best). */
+bool gurpil_game_view_is_new_best(GurpilGameView *instance, int32_t pre_run_best);
+
+/* Updates the `best` shown in the HUD/game-over overlay, and whether the game-over panel should
+ * show "New best!" — called right after gurpil_game_view_tick reports the run just ended, once
+ * the caller has compared/persisted it (see gurpil_game_view_is_new_best above). */
+void gurpil_game_view_set_best(GurpilGameView *instance, int32_t best, bool is_new_best);
