@@ -103,23 +103,37 @@ static const char *const GAME_OVER_BEST_FORMAT = "Best: %ldm";
 static const char *const GAME_OVER_NEW_BEST_TEXT = "New best!";
 static const char *const GAME_OVER_PROMPT_TEXT = "OK: menu";
 
-// Fills each column from its ground_y down to GURPIL_GROUND_BASELINE_Y — the playfield's own
-// last row, now short of the actual screen bottom (see that constant's comment in render_map.h)
-// — so the terrain no longer paints the footer strip solid black behind the control legend.
+// Draws the ground as a thin SURFACE OUTLINE rather than a solid fill: one line segment
+// connecting each column's ground_y to the next column's, tracing the terrain's profile across
+// the full screen width. A prior version filled every column solid black from ground_y down to
+// GURPIL_GROUND_BASELINE_Y, which — for tall terrain — painted a heavy black mass that dominated
+// the screen and cramped everything else; an outline reads the same shape while leaving the
+// ground beneath it blank, freeing most of the lower screen. Still O(GURPIL_SCREEN_WIDTH): one
+// terrain_at sample and one canvas_draw_line per column, same cost as the fill it replaces. No
+// shading band under the line (considered and dropped): the freed white space is the point of
+// this change, and a bare profile line is already unambiguous against the white background.
 static void render_terrain(Canvas *canvas, const GameState *game) {
     int32_t distance = game_distance(game);
-    for (int column = 0; column < GURPIL_SCREEN_WIDTH; column++) {
+
+    int32_t first_world_x = screen_column_to_world_x(distance, 0);
+    TerrainSample first_sample = terrain_at(game->seed, first_world_x);
+    uint8_t previous_y = terrain_height_to_screen_y(first_sample.height);
+
+    for (int column = 1; column < GURPIL_SCREEN_WIDTH; column++) {
         int32_t world_x = screen_column_to_world_x(distance, column);
         TerrainSample sample = terrain_at(game->seed, world_x);
         uint8_t ground_y = terrain_height_to_screen_y(sample.height);
-        canvas_draw_line(canvas, column, ground_y, column, GURPIL_GROUND_BASELINE_Y);
+
+        canvas_draw_line(canvas, column - 1, previous_y, column, ground_y);
+        previous_y = ground_y;
     }
 }
 
 // Draws a small flag (pole + pennant) at the next checkpoint's on-screen column, if it is
 // currently ahead of the vehicle and still on screen. The pole always sits entirely above the
-// terrain's own ground_y at that column (drawn by render_terrain above, running from ground_y
-// down to the bottom row), so the two never overlap regardless of terrain height.
+// terrain's own ground_y at that column (drawn by render_terrain above as a thin outline, its
+// only black pixels at that column being the line right at ground_y), so the two never overlap
+// regardless of terrain height.
 static void render_checkpoint_marker(Canvas *canvas, const GameState *game) {
     int32_t distance = game_distance(game);
     int32_t next_checkpoint = game->endless.next_checkpoint;
@@ -311,8 +325,10 @@ static void render_hint_icon(Canvas *canvas, const GameState *game) {
 // The Back indicator: the footer's own 5th slot (see FOOTER_LEGEND_BACK_SLOT_INDEX in
 // render_map.h), telling the player what Back does from this scene — pop back to the menu
 // (SceneManager's own default unconsumed-Back handling; see gurpil_game_view.c's comment on
-// GurpilKeyBack). Just the word "Back": the footer strip is its own row now (not a cramped
-// corner panel), so a single centered label reads clearly without needing a second stacked line.
+// GurpilKeyBack). Just the word "Back" in FontSecondary (an earlier revision measured "Back:"
+// at 22px in this same font, comfortably inside the slot; the bare word without the colon is
+// narrower still): the footer strip is its own row (not a cramped corner panel), so a single
+// centered label reads clearly without needing a second stacked line.
 enum {
     // Vertically centers the label within the footer's content band (the rows below the
     // play/footer separator line).
@@ -322,13 +338,16 @@ enum {
 static const char *const FOOTER_BACK_TEXT = "Back";
 
 // The in-play control legend: a horizontal strip across the bottom FOOTER (see
-// GURPIL_FOOTER_HEIGHT, render_map.h), one slot per D-pad direction pairing a tiny
-// outward-pointing arrow with the wheel-shape glyph that direction mounts (see
-// footer_legend_cell for the position math), plus a 5th slot with the "Back" label. A thin
-// separator line marks where the (now shorter) playfield ends and the footer begins. Needs no
-// opaque background of its own: the terrain stops at GURPIL_GROUND_BASELINE_Y, above the footer,
-// so nothing ever scrolls underneath this strip. The cell for the currently mounted shape gets
-// its own highlight frame, so the player also sees their current selection at a glance.
+// GURPIL_FOOTER_HEIGHT, render_map.h), one slot per D-pad direction pairing a direction arrow
+// with the wheel-shape glyph that direction mounts, side by side on one shared row (see
+// footer_legend_cell for the position math) — both sized up (FOOTER_LEGEND_ARROW_SIZE,
+// FOOTER_LEGEND_GLYPH_RADIUS) to actually read at a glance on-device, unlike the earlier
+// two-row-stacked layout this replaced — plus a 5th slot with the "Back" label. A thin separator
+// line marks where the (now shorter) playfield ends and the footer begins. Needs no opaque
+// background of its own: the terrain outline never reaches past GURPIL_GROUND_BASELINE_Y, above
+// the footer, so nothing ever scrolls underneath this strip. The cell for the currently mounted
+// shape gets its own highlight frame, so the player also sees their current selection at a
+// glance.
 static void render_footer_legend(Canvas *canvas, const GameState *game) {
     canvas_draw_line(canvas, 0, GURPIL_FOOTER_TOP_Y, GURPIL_SCREEN_WIDTH - 1, GURPIL_FOOTER_TOP_Y);
 

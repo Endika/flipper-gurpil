@@ -20,20 +20,20 @@ enum {
 
     // The bottom footer strip: a dedicated band for the control legend (see FOOTER_LEGEND_* and
     // footer_legend_cell below) so it no longer needs its own opaque panel drawn over the
-    // terrain — the terrain itself now stops short of the screen bottom instead of filling it
-    // solid black (see GURPIL_GROUND_BASELINE_Y below and render_terrain in src/views/
-    // game_view.c). GURPIL_FOOTER_TOP_Y is both the footer's first row and the row the play/
-    // footer separator line draws on.
+    // terrain. render_terrain (src/views/game_view.c) now draws the ground as a thin outline
+    // capped at GURPIL_GROUND_BASELINE_Y below, so it never dips into the footer band regardless.
+    // GURPIL_FOOTER_TOP_Y is both the footer's first row and the row the play/footer separator
+    // line draws on.
     GURPIL_FOOTER_HEIGHT = 13,
     GURPIL_FOOTER_TOP_Y = GURPIL_SCREEN_HEIGHT - GURPIL_FOOTER_HEIGHT,
 
     GURPIL_VEHICLE_COLUMN = 42, // fixed screen column the vehicle sits at (~1/3 from left);
                                 // the terrain scrolls under it as the game distance grows.
 
-    // Screen y a height-0 ground column draws at — now the playfield's own last row, just above
-    // the footer separator, rather than the screen's actual bottom row; taller ground (up to
+    // Screen y a height-0 ground column draws at — the playfield's own last row, just above the
+    // footer separator, rather than the screen's actual bottom row; taller ground (up to
     // TERRAIN_HEIGHT_MAX) still draws higher up from there. Note this is a fixed-size domain
-    // height band (TERRAIN_HEIGHT_MAX, see domain/terrain.h) mapped onto a playfield that is now
+    // height band (TERRAIN_HEIGHT_MAX, see domain/terrain.h) mapped onto a playfield that is
     // GURPIL_FOOTER_HEIGHT px shorter than the full screen: at the very tallest terrain, the
     // vehicle/rider sprite (which sits on the ground, not fixed to the top strip) has that much
     // less clearance below the HUD than before — already a tight margin pre-footer, see
@@ -124,11 +124,14 @@ ControlsLegendRow controls_legend_row(int index);
  * In-play D-pad control legend layout (no furi, no Canvas): a horizontal strip of [arrow +
  * shape-glyph] pairs spanning the bottom FOOTER (see GURPIL_FOOTER_HEIGHT above), always visible
  * during PLAY (unlike the full-screen list above, which is start/how-to-play only), so the player
- * can see which D-pad direction mounts which wheel shape without memorizing the mapping. The math
- * lives here (not game_view.c) so it is host-testable the same way controls_legend_row already
- * is; game_view.c only adds the furi-side Canvas calls (each arrow's CanvasDirection, the
- * current-shape highlight, the play/footer separator line, and the "Back" indicator in the
- * strip's own 5th slot — its text/position stay in game_view.c since they need no host test).
+ * can see which D-pad direction mounts which wheel shape without memorizing the mapping. Arrow
+ * and glyph sit side by side on one shared row (not stacked in two smaller rows) so both can use
+ * the footer's full content height and read clearly on-device — the earlier stacked layout made
+ * both too small to read. The math lives here (not game_view.c) so it is host-testable the same
+ * way controls_legend_row already is; game_view.c only adds the furi-side Canvas calls (each
+ * arrow's CanvasDirection, the current-shape highlight, the play/footer separator line, and the
+ * "Back" indicator in the strip's own 5th slot — its text/position stay in game_view.c since they
+ * need no host test).
  */
 
 enum {
@@ -142,35 +145,50 @@ enum {
 
     FOOTER_LEGEND_CONTENT_TOP_Y = GURPIL_FOOTER_TOP_Y + 1, // first row below the separator line.
 
-    FOOTER_LEGEND_ARROW_SIZE = 3, // triangle base/height for each tiny direction arrow, px.
-    // The farthest an arrow's tip reaches from its own anchor point along either axis
-    // (canvas_draw_triangle's apex sits height-1 px past (x, y)).
-    FOOTER_LEGEND_ARROW_REACH = FOOTER_LEGEND_ARROW_SIZE - 1,
-    // Shared anchor row for every cell's arrow: offset down from the footer's own top so an
-    // Up-pointing arrow's tip (which reaches FOOTER_LEGEND_ARROW_REACH px above its anchor) lands
-    // exactly on the first content row, never poking into the separator line above it.
-    FOOTER_LEGEND_ARROW_Y = FOOTER_LEGEND_CONTENT_TOP_Y + FOOTER_LEGEND_ARROW_REACH,
-
-    FOOTER_LEGEND_GLYPH_GAP = 1,    // gap between the arrow band's own reach and the glyph band,
-                                    // px, so a Down-pointing arrow's tip never touches the glyph
-                                    // (or its highlight frame) below it.
-    FOOTER_LEGEND_GLYPH_RADIUS = 2, // radius (or half-size) of each tiny shape glyph, px.
+    FOOTER_LEGEND_GLYPH_RADIUS = 4,     // radius (or half-size) of each shape glyph, px — doubled
+                                        // from the old stacked layout so the shape itself reads
+                                        // clearly at a glance, not just its outline.
     FOOTER_LEGEND_HIGHLIGHT_MARGIN = 1, // padding between the mounted shape's glyph and the
                                         // highlight frame drawn around it, px.
-    // Shared anchor row for every cell's glyph: below the arrow band's own farthest reach plus
-    // the gap above, then far enough down that the glyph plus its highlight frame lands on the
-    // footer's own last row without spilling past the screen bottom.
-    FOOTER_LEGEND_GLYPH_Y = FOOTER_LEGEND_ARROW_Y + FOOTER_LEGEND_ARROW_REACH +
-                            FOOTER_LEGEND_GLYPH_GAP + FOOTER_LEGEND_GLYPH_RADIUS +
-                            FOOTER_LEGEND_HIGHLIGHT_MARGIN,
+    // Farthest either the glyph or its highlight frame reaches from the glyph's own center, px.
+    FOOTER_LEGEND_GLYPH_HALF_EXTENT = FOOTER_LEGEND_GLYPH_RADIUS + FOOTER_LEGEND_HIGHLIGHT_MARGIN,
+
+    FOOTER_LEGEND_ARROW_SIZE = 6, // triangle base AND height for each direction arrow, px —
+                                  // doubled from the old stacked layout for the same reason.
+    // The farthest an arrow's tip reaches from its own anchor point along the axis it points
+    // (canvas_draw_triangle's apex sits height-1 px past (x, y)).
+    FOOTER_LEGEND_ARROW_REACH = FOOTER_LEGEND_ARROW_SIZE - 1,
+    // The farthest an arrow reaches from its own anchor perpendicular to the axis it points
+    // (canvas_draw_triangle's base spans +/- base/2 around (x, y)).
+    FOOTER_LEGEND_ARROW_HALF_WIDTH = FOOTER_LEGEND_ARROW_SIZE / 2,
+
+    // Shared anchor row for every cell's arrow AND glyph — a single row, vertically centered in
+    // the footer's content band, tall enough that the glyph (plus its highlight frame) reaches
+    // exactly to the band's own top and bottom edges without spilling past either.
+    FOOTER_LEGEND_ROW_Y = FOOTER_LEGEND_CONTENT_TOP_Y + FOOTER_LEGEND_GLYPH_HALF_EXTENT,
+
+    // Horizontal gap, px, between an arrow's farthest reach toward the glyph (the Right-pointing
+    // cell's tip, the worst case since every other direction reaches away from the glyph instead)
+    // and the glyph's own nearest edge, so the two never touch.
+    FOOTER_LEGEND_ARROW_GLYPH_GAP = 2,
+    // Glyph center offset from the slot's own center x: nudged right so its own left edge sits
+    // just right of the slot center, leaving room for the arrow to its left.
+    FOOTER_LEGEND_GLYPH_X_OFFSET = FOOTER_LEGEND_GLYPH_HALF_EXTENT - 1,
+    // Arrow anchor offset from the slot's own center x: far enough left that even a Right-
+    // pointing arrow's tip (FOOTER_LEGEND_ARROW_REACH px further right than the anchor) still
+    // clears the glyph's own left edge (1 px left of the slot center, per
+    // FOOTER_LEGEND_GLYPH_X_OFFSET above) by FOOTER_LEGEND_ARROW_GLYPH_GAP px.
+    FOOTER_LEGEND_ARROW_X_OFFSET = -(FOOTER_LEGEND_ARROW_REACH + FOOTER_LEGEND_ARROW_GLYPH_GAP + 1),
 };
 
 typedef struct {
-    int32_t glyph_x, glyph_y; // tiny shape-glyph center.
+    int32_t glyph_x, glyph_y; // shape-glyph center.
     int32_t arrow_x, arrow_y; // direction arrow's base/height intersection point (the same (x, y)
                               // canvas_draw_triangle takes) — its tip extends further than this
                               // anchor, per the FOOTER_LEGEND_ARROW_REACH comment above; the
                               // caller picks the CanvasDirection so the tip points the right way.
+                              // Shares the glyph's own row (arrow_y == glyph_y) and sits to its
+                              // left (arrow_x < glyph_x) — see FOOTER_LEGEND_ARROW_X_OFFSET.
     ShapeId shape;            // the wheel shape this direction mounts.
 } FooterLegendCell;
 
@@ -180,8 +198,9 @@ int32_t footer_legend_slot_center_x(int slot_index);
 
 /* Returns the layout + mounted shape for legend cell `index` (0..FOOTER_LEGEND_CELL_COUNT-1, in
  * Up/Right/Down/Left order — matching both shape_for_input_key and controls_legend_row). Every
- * cell shares the same arrow/glyph anchor rows (FOOTER_LEGEND_ARROW_Y / FOOTER_LEGEND_GLYPH_Y);
- * only the slot's own center x (footer_legend_slot_center_x) varies. Out-of-range indices fall
- * back to the Left cell, matching this module's existing no-crash convention for the analogous
- * shape_for_input_key default case. */
+ * cell shares the same arrow/glyph row (FOOTER_LEGEND_ROW_Y) and the same pair of x offsets from
+ * its own slot center (FOOTER_LEGEND_ARROW_X_OFFSET, FOOTER_LEGEND_GLYPH_X_OFFSET); only the
+ * slot's own center x (footer_legend_slot_center_x) varies between cells. Out-of-range indices
+ * fall back to the Left cell, matching this module's existing no-crash convention for the
+ * analogous shape_for_input_key default case. */
 FooterLegendCell footer_legend_cell(int index);

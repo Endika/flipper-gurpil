@@ -70,31 +70,32 @@ int32_t footer_legend_slot_center_x(int slot_index) {
 
 FooterLegendCell footer_legend_cell(int index) {
     FooterLegendCell cell;
-    cell.glyph_y = FOOTER_LEGEND_GLYPH_Y;
-    cell.arrow_y = FOOTER_LEGEND_ARROW_Y;
+    cell.glyph_y = FOOTER_LEGEND_ROW_Y;
+    cell.arrow_y = FOOTER_LEGEND_ROW_Y;
 
+    int slot_index;
     switch (index) {
         case 0: // Up
-            cell.glyph_x = footer_legend_slot_center_x(0);
-            cell.arrow_x = cell.glyph_x;
+            slot_index = 0;
             cell.shape = ShapeCircle;
             break;
         case 1: // Right
-            cell.glyph_x = footer_legend_slot_center_x(1);
-            cell.arrow_x = cell.glyph_x;
+            slot_index = 1;
             cell.shape = ShapeLine;
             break;
         case 2: // Down
-            cell.glyph_x = footer_legend_slot_center_x(2);
-            cell.arrow_x = cell.glyph_x;
+            slot_index = 2;
             cell.shape = ShapeSquare;
             break;
         case 3: // Left
         default:
-            cell.glyph_x = footer_legend_slot_center_x(3);
-            cell.arrow_x = cell.glyph_x;
+            slot_index = 3;
             cell.shape = ShapeTriangle;
             break;
     }
+
+    int32_t slot_center_x = footer_legend_slot_center_x(slot_index);
+    cell.glyph_x = slot_center_x + FOOTER_LEGEND_GLYPH_X_OFFSET;
+    cell.arrow_x = slot_center_x + FOOTER_LEGEND_ARROW_X_OFFSET;
     return cell;
 }

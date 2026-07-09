@@ -132,41 +132,93 @@ static void test_footer_legend_cell_shapes_match_shape_for_input_key(void) {
 }
 
 static void test_footer_legend_cell_slots_are_evenly_spaced_and_ordered(void) {
-    // Every cell shares the arrow/glyph anchor rows and sits above its own slot's center x, in
-    // ascending slot order (Up/Right/Down/Left == slot 0..3) — otherwise the legend would read
-    // out of order or cells would overlap.
+    // Every cell shares the arrow/glyph row and sits over its own slot's center x, in ascending
+    // slot order (Up/Right/Down/Left == slot 0..3) — otherwise the legend would read out of
+    // order or cells would overlap. Arrow and glyph now sit side by side on one shared row
+    // (see FOOTER_LEGEND_ROW_Y), not stacked, so both x's — not just the glyph's — must advance
+    // by a full slot width between cells.
     for (int index = 1; index < FOOTER_LEGEND_CELL_COUNT; index++) {
         FooterLegendCell previous = footer_legend_cell(index - 1);
         FooterLegendCell current = footer_legend_cell(index);
         assert(current.glyph_x - previous.glyph_x == FOOTER_LEGEND_SLOT_WIDTH);
-        assert(current.arrow_x == current.glyph_x);
+        assert(current.arrow_x - previous.arrow_x == FOOTER_LEGEND_SLOT_WIDTH);
         assert(current.arrow_y == previous.arrow_y);
         assert(current.glyph_y == previous.glyph_y);
     }
 }
 
-static void test_footer_legend_cell_arrow_sits_above_glyph(void) {
-    // Every cell stacks its direction arrow above its shape glyph (the strip is horizontal, one
-    // slot per direction, so — unlike a 2D cross — there is no per-direction spatial offset:
-    // game_view.c's own CanvasDirection choice is what makes each arrow point the right way).
+static void test_footer_legend_cell_arrow_sits_left_of_glyph_on_the_same_row(void) {
+    // Each cell's arrow and shape glyph now sit side by side on one shared row (not stacked in
+    // two smaller rows, see this module's own comment on FOOTER_LEGEND_ROW_Y) so both can be
+    // drawn bigger and still fit the footer's fixed height: same y, arrow to the left.
     for (int index = 0; index < FOOTER_LEGEND_CELL_COUNT; index++) {
         FooterLegendCell cell = footer_legend_cell(index);
-        assert(cell.arrow_y < cell.glyph_y);
+        assert(cell.arrow_y == cell.glyph_y);
+        assert(cell.arrow_x < cell.glyph_x);
     }
 }
 
-static void test_footer_legend_cells_fit_inside_the_footer(void) {
-    // The farthest-out point of every cell (the arrow's tip reach above it, and the glyph's own
-    // highlight frame around it) must stay within the footer band, below the play/footer
-    // separator line and above the screen's own last row.
-    int32_t arrow_tip_reach = FOOTER_LEGEND_ARROW_SIZE - 1;
-    int32_t glyph_reach = FOOTER_LEGEND_GLYPH_RADIUS + FOOTER_LEGEND_HIGHLIGHT_MARGIN;
+// Bounding box of legend cell `index`'s arrow triangle, direction-aware: mirrors the
+// Up/Right/Down/Left -> CanvasDirection choice game_view.c's render_footer_legend makes for the
+// same index, so this test verifies the actual on-screen footprint rather than a loose,
+// direction-agnostic guess.
+typedef struct {
+    int32_t left, right, top, bottom;
+} PixelBounds;
 
+static PixelBounds footer_legend_arrow_bounds(int index, FooterLegendCell cell) {
+    int32_t reach = FOOTER_LEGEND_ARROW_REACH;           // tip's reach along the pointed axis.
+    int32_t half_width = FOOTER_LEGEND_ARROW_HALF_WIDTH; // reach on the perpendicular axis.
+    PixelBounds bounds;
+    switch (index) {
+        case 0: // Up: tip above the anchor.
+            bounds = (PixelBounds){cell.arrow_x - half_width, cell.arrow_x + half_width,
+                                   cell.arrow_y - reach, cell.arrow_y};
+            break;
+        case 1: // Right: tip right of the anchor.
+            bounds = (PixelBounds){cell.arrow_x, cell.arrow_x + reach, cell.arrow_y - half_width,
+                                   cell.arrow_y + half_width};
+            break;
+        case 2: // Down: tip below the anchor.
+            bounds = (PixelBounds){cell.arrow_x - half_width, cell.arrow_x + half_width,
+                                   cell.arrow_y, cell.arrow_y + reach};
+            break;
+        case 3: // Left: tip left of the anchor.
+        default:
+            bounds = (PixelBounds){cell.arrow_x - reach, cell.arrow_x, cell.arrow_y - half_width,
+                                   cell.arrow_y + half_width};
+            break;
+    }
+    return bounds;
+}
+
+static PixelBounds footer_legend_glyph_bounds(FooterLegendCell cell) {
+    int32_t half_extent = FOOTER_LEGEND_GLYPH_HALF_EXTENT; // glyph radius + highlight margin.
+    return (PixelBounds){cell.glyph_x - half_extent, cell.glyph_x + half_extent,
+                         cell.glyph_y - half_extent, cell.glyph_y + half_extent};
+}
+
+static void test_footer_legend_cells_fit_inside_the_footer(void) {
+    // Every cell's actual arrow footprint (direction-aware, see footer_legend_arrow_bounds) and
+    // glyph-plus-highlight-frame footprint must stay within the footer's content band, below the
+    // play/footer separator line and above the screen's own last row, and within the screen's
+    // own width — regardless of which of the 4 directions that cell's arrow points.
     for (int index = 0; index < FOOTER_LEGEND_CELL_COUNT; index++) {
         FooterLegendCell cell = footer_legend_cell(index);
-        assert(cell.arrow_y - arrow_tip_reach >= GURPIL_FOOTER_TOP_Y);
-        assert(cell.glyph_y + glyph_reach <= GURPIL_SCREEN_HEIGHT - 1);
-        assert(cell.glyph_x >= 0 && cell.glyph_x < GURPIL_SCREEN_WIDTH);
+        PixelBounds arrow = footer_legend_arrow_bounds(index, cell);
+        PixelBounds glyph = footer_legend_glyph_bounds(cell);
+
+        assert(arrow.top >= FOOTER_LEGEND_CONTENT_TOP_Y);
+        assert(arrow.bottom <= GURPIL_SCREEN_HEIGHT - 1);
+        assert(arrow.left >= 0 && arrow.right < GURPIL_SCREEN_WIDTH);
+
+        assert(glyph.top >= FOOTER_LEGEND_CONTENT_TOP_Y);
+        assert(glyph.bottom <= GURPIL_SCREEN_HEIGHT - 1);
+        assert(glyph.left >= 0 && glyph.right < GURPIL_SCREEN_WIDTH);
+
+        // The arrow never reaches as far as the glyph, whichever direction it points, so the two
+        // never touch within a cell.
+        assert(arrow.right < glyph.left);
     }
     assert(GURPIL_FOOTER_TOP_Y < GURPIL_SCREEN_HEIGHT);
     assert(GURPIL_GROUND_BASELINE_Y < GURPIL_FOOTER_TOP_Y);
@@ -232,8 +284,8 @@ int main(void) {
     test_footer_legend_cell_slots_are_evenly_spaced_and_ordered();
     printf("test_footer_legend_cell_slots_are_evenly_spaced_and_ordered: PASS\n");
 
-    test_footer_legend_cell_arrow_sits_above_glyph();
-    printf("test_footer_legend_cell_arrow_sits_above_glyph: PASS\n");
+    test_footer_legend_cell_arrow_sits_left_of_glyph_on_the_same_row();
+    printf("test_footer_legend_cell_arrow_sits_left_of_glyph_on_the_same_row: PASS\n");
 
     test_footer_legend_cells_fit_inside_the_footer();
     printf("test_footer_legend_cells_fit_inside_the_footer: PASS\n");
