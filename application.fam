@@ -14,6 +14,7 @@ App(
         "main.c",
         "src/domain/version_info.c",
         "src/domain/shapes.c",
+        "src/domain/terrain.c",
         "src/app/gurpil_app.c",
     ],
 )
