@@ -23,10 +23,10 @@ typedef enum {
 // read the exact same values it displays instead of duplicating them — e.g. the checkpoint-flash
 // HUD text formats ENDLESS_CHECKPOINT_BONUS_MS directly (see src/views/game_view.c).
 enum {
-    ENDLESS_START_TIME_MS = 18000,      // initial time budget for a fresh run, ms.
-    ENDLESS_CHECKPOINT_BONUS_MS = 4000, // time added per checkpoint crossed, ms.
-    ENDLESS_CHECKPOINT_SPACING = 50,    // distance units between checkpoints.
-    ENDLESS_MAX_TIME_MS = 27000,        // hard cap on time_left_ms; bonuses never push past this.
+    ENDLESS_START_TIME_MS = 20000,      // initial time budget for a fresh run, ms.
+    ENDLESS_CHECKPOINT_BONUS_MS = 8000, // time added per checkpoint crossed, ms.
+    ENDLESS_CHECKPOINT_SPACING = 45,    // distance units between checkpoints.
+    ENDLESS_MAX_TIME_MS = 30000,        // hard cap on time_left_ms; bonuses never push past this.
 };
 
 typedef struct {

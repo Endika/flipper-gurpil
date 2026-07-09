@@ -19,12 +19,11 @@
 // suboptimal.
 #define DUMB_SHAPE ShapeSquare
 
-// Upper bound on ticks driven per run before giving up on reaching game-over. Generous: even
-// the best-shape run drains its capped time budget (endless.c's MAX_TIME_MS) within a couple
-// thousand ticks of TICK_MS each (each checkpoint crossed nets a time *loss* once travel time
-// exceeds the fixed bonus, so no shape choice survives indefinitely) — hitting this limit means
-// a real bug, not a slow-but-healthy run.
+// Generous upper bound for a fixed poor shape to run out of time and reach game-over.
 #define MAX_TICKS 20000u
+
+// A well-played run is expected to still be alive this far in (see the sustain test below).
+#define SUSTAINED_TICKS 15000u
 
 // How many post-game-over ticks to drive in the freeze check.
 #define POST_OVER_TICK_COUNT 50u
@@ -46,11 +45,9 @@
 #define OBSTACLE_STABLE_SPAN 12
 #define OBSTACLE_SEARCH_LIMIT 8000
 
-// Drives `game` with a per-tick shape chosen as the best for the terrain under the vehicle's
-// current position, until endless goes Over or MAX_TICKS is exhausted. Real terrain_at/
-// shape_best_for calls, no test seam.
-static void run_smart_until_over(GameState *game, uint32_t seed) {
-    for (uint32_t i = 0; i < MAX_TICKS && !game_is_over(game); i++) {
+// Drives `game` for up to `ticks`, each tick mounting the best shape for the current terrain.
+static void run_smart_for(GameState *game, uint32_t seed, uint32_t ticks) {
+    for (uint32_t i = 0; i < ticks && !game_is_over(game); i++) {
         int32_t x = game->sim.distance_fp >> SIM_FP_SHIFT;
         ShapeId best = shape_best_for(terrain_at(seed, x).kind);
         game_set_shape(game, best);
@@ -67,19 +64,18 @@ static void run_fixed_shape_until_over(GameState *game, ShapeId shape) {
     }
 }
 
-static void test_smart_shape_choice_beats_dumb_fixed_shape(void) {
-    GameState smart;
-    game_start(&smart, SEED_A);
-    run_smart_until_over(&smart, SEED_A);
-    assert(game_is_over(&smart));
-
+static void test_adapting_shape_sustains_run_far_beyond_fixed_poor_shape(void) {
+    // A fixed poor shape runs out of time; adapting the shape to the terrain is still alive well
+    // past that point and has travelled strictly further. Skill keeps you going — the game's point.
     GameState dumb;
     game_start(&dumb, SEED_A);
     run_fixed_shape_until_over(&dumb, DUMB_SHAPE);
     assert(game_is_over(&dumb));
 
-    // Proves the shape choice matters end-to-end: adapting to terrain reaches strictly further
-    // than sticking to one poor shape, given the same seed and tick pacing.
+    GameState smart;
+    game_start(&smart, SEED_A);
+    run_smart_for(&smart, SEED_A, SUSTAINED_TICKS);
+    assert(!game_is_over(&smart));
     assert(game_distance(&smart) > game_distance(&dumb));
 }
 
@@ -119,10 +115,9 @@ static void test_deterministic_given_same_inputs(void) {
         game_tick(&b, TICK_MS);
         assert(game_distance(&a) == game_distance(&b));
         assert(game_time_left(&a) == game_time_left(&b));
+        assert(game_is_over(&a) == game_is_over(&b));
     }
 
-    assert(game_is_over(&a));
-    assert(game_is_over(&b));
     assert(game_distance(&a) == game_distance(&b));
     assert(game_time_left(&a) == game_time_left(&b));
 }
@@ -247,8 +242,8 @@ static void test_is_new_best_true_only_when_distance_exceeds_pre_run_best(void) 
 }
 
 int main(void) {
-    test_smart_shape_choice_beats_dumb_fixed_shape();
-    printf("test_smart_shape_choice_beats_dumb_fixed_shape: PASS\n");
+    test_adapting_shape_sustains_run_far_beyond_fixed_poor_shape();
+    printf("test_adapting_shape_sustains_run_far_beyond_fixed_poor_shape: PASS\n");
 
     test_over_freezes_distance_through_orchestrator();
     printf("test_over_freezes_distance_through_orchestrator: PASS\n");
