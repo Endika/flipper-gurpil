@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Endika/flipper-gurpil/compare/v0.1.1...v0.1.2) (2026-07-09)
+
+
+### Bug Fixes
+
+* **endless:** rebalance time economy so skilled play is sustainable ([595355b](https://github.com/Endika/flipper-gurpil/commit/595355b5037330920c8d9aef1a4bdf4afc0b75b1))
+
 ## [0.1.1](https://github.com/Endika/flipper-gurpil/compare/v0.1.0...v0.1.1) (2026-07-09)
 
 
