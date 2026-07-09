@@ -130,21 +130,15 @@ endif
 format:
 	clang-format -i $(FORMAT_FILES)
 
-# unusedFunction suppressions: main.c's entry point, platform_random_seed, and
-# best_store_load/best_store_save are each only called from code outside this host-analyzed
-# source set (the firmware loader; the Task 11 app wiring, respectively) — real callers exist,
-# cppcheck just can't see them here. gurpil_render is likewise Task 10's furi-facing render
-# entry point, only called from the Task 11 app's render callback (not written yet). render_map.c
-# needs no such suppression: every function it exposes already has a real caller today —
-# tests/test_render_map.c exercises all of them, and game_view.c also calls the two screen-
-# mapping helpers.
+# unusedFunction suppression: main.c's entry point (gurpil_app) is only called by the firmware
+# loader, which cppcheck can't see from this host-analyzed source set. Every other furi-facing
+# function (platform_random_seed, best_store_load/save, gurpil_render, the render_map helpers)
+# now has a real caller inside this same set — src/app/gurpil_app.c wires them all into the main
+# loop — so no other suppression is needed.
 linter:
 	cppcheck --enable=all --inline-suppr -I. \
 		--suppress=missingIncludeSystem \
 		--suppress=unusedFunction:main.c \
-		--suppress=unusedFunction:src/platform/random_port.c \
-		--suppress=unusedFunction:src/persistence/best_store.c \
-		--suppress=unusedFunction:src/views/game_view.c \
 		src/domain/version_info.c src/domain/shapes.c src/domain/terrain.c src/domain/sim.c \
 		src/domain/endless.c src/domain/record.c \
 		src/application/game.c \
