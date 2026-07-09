@@ -39,8 +39,10 @@
 /* Draws one frame: the scrolling terrain silhouette, the next checkpoint's marker (if on
  * screen), the rider-on-a-scooter vehicle with its currently mounted wheel shape spinning per
  * `frame`, a distance+timer HUD, a speed bar (game_speed_permille), the tutorial shape hint
- * (while game_hint_active), a brief "+Ns" flash when `show_checkpoint_flash` is set, and — once
- * game_is_over(game) — an opaque game-over panel showing the run's final distance, `best`, and
- * "New best!" when `is_new_best` is set. */
+ * (while game_hint_active), a brief "+Ns" flash when `show_checkpoint_flash` is set, an always-
+ * on in-play D-pad control legend (bottom-left, Up/Right/Down/Left mapped to their wheel shapes
+ * plus a "Back: menu" line, with the currently mounted shape highlighted) while the run is still
+ * live, and — once game_is_over(game) — an opaque game-over panel (which replaces the legend)
+ * showing the run's final distance, `best`, and "New best!" when `is_new_best` is set. */
 void gurpil_render(Canvas *canvas, const GameState *game, int32_t best, uint32_t frame,
                    bool show_checkpoint_flash, bool is_new_best);

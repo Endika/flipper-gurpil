@@ -63,3 +63,42 @@ ControlsLegendRow controls_legend_row(int index) {
     row.y = CONTROLS_LEGEND_FIRST_Y + index * CONTROLS_LEGEND_ROW_SPACING;
     return row;
 }
+
+ControlLegendCell control_legend_cell(int index) {
+    int32_t center_x = CONTROL_LEGEND_CROSS_CENTER_X;
+    int32_t center_y = CONTROL_LEGEND_CROSS_CENTER_Y;
+    ControlLegendCell cell;
+
+    switch (index) {
+        case 0: // Up
+            cell.glyph_x = center_x;
+            cell.glyph_y = center_y - CONTROL_LEGEND_GLYPH_OFFSET;
+            cell.arrow_x = center_x;
+            cell.arrow_y = center_y - CONTROL_LEGEND_ARROW_OFFSET;
+            cell.shape = ShapeCircle;
+            break;
+        case 1: // Right
+            cell.glyph_x = center_x + CONTROL_LEGEND_GLYPH_OFFSET;
+            cell.glyph_y = center_y;
+            cell.arrow_x = center_x + CONTROL_LEGEND_ARROW_OFFSET;
+            cell.arrow_y = center_y;
+            cell.shape = ShapeLine;
+            break;
+        case 2: // Down
+            cell.glyph_x = center_x;
+            cell.glyph_y = center_y + CONTROL_LEGEND_GLYPH_OFFSET;
+            cell.arrow_x = center_x;
+            cell.arrow_y = center_y + CONTROL_LEGEND_ARROW_OFFSET;
+            cell.shape = ShapeSquare;
+            break;
+        case 3: // Left
+        default:
+            cell.glyph_x = center_x - CONTROL_LEGEND_GLYPH_OFFSET;
+            cell.glyph_y = center_y;
+            cell.arrow_x = center_x - CONTROL_LEGEND_ARROW_OFFSET;
+            cell.arrow_y = center_y;
+            cell.shape = ShapeTriangle;
+            break;
+    }
+    return cell;
+}

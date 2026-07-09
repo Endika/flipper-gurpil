@@ -188,6 +188,29 @@ static void render_wheel(Canvas *canvas, int32_t vx, int32_t wheel_y, ShapeId sh
     }
 }
 
+// Draws a small, non-spinning silhouette for `shape` centered at (cx, cy) with footprint radius
+// `r` — the same per-shape outlines render_wheel above draws while spinning, minus the animation.
+// Shared by the tutorial hint icon and the in-play control legend so both static glyphs stay
+// pixel-identical to each other (and to the vehicle's own wheel) instead of drifting apart.
+static void render_shape_glyph(Canvas *canvas, int32_t cx, int32_t cy, int32_t r, ShapeId shape) {
+    switch (shape) {
+        case ShapeCircle:
+            canvas_draw_circle(canvas, cx, cy, r);
+            break;
+        case ShapeLine:
+            canvas_draw_line(canvas, cx - r, cy, cx + r, cy);
+            break;
+        case ShapeSquare:
+            canvas_draw_frame(canvas, cx - r, cy - r, r * 2, r * 2);
+            break;
+        case ShapeTriangle:
+        case ShapeCount:
+        default:
+            canvas_draw_triangle(canvas, cx, cy + r, r * 2, r * 2, CanvasDirectionBottomToTop);
+            break;
+    }
+}
+
 // Scooter deck/stem/handlebar plus a stick-figure rider standing on it, all anchored to the
 // wheel's own center so it reads as one coherent "character on a scooter" silhouette, drawn
 // entirely above `wheel_y` — in the white sky, never over the black ground fill — for contrast.
@@ -261,25 +284,89 @@ static void render_hint_icon(Canvas *canvas, const GameState *game) {
     int32_t cy = HINT_ICON_Y;
     int32_t r = HINT_ICON_RADIUS;
 
-    switch (game_hint_shape(game)) {
-        case ShapeCircle:
-            canvas_draw_circle(canvas, cx, cy, r);
-            break;
-        case ShapeLine:
-            canvas_draw_line(canvas, cx - r, cy, cx + r, cy);
-            break;
-        case ShapeSquare:
-            canvas_draw_frame(canvas, cx - r, cy - r, r * 2, r * 2);
-            break;
-        case ShapeTriangle:
-        case ShapeCount:
-        default:
-            canvas_draw_triangle(canvas, cx, cy + r, r * 2, r * 2, CanvasDirectionBottomToTop);
-            break;
-    }
+    render_shape_glyph(canvas, cx, cy, r, game_hint_shape(game));
 
     int32_t margin = HINT_ICON_FRAME_MARGIN;
     canvas_draw_frame(canvas, cx - r - margin, cy - r - margin, (r + margin) * 2, (r + margin) * 2);
+}
+
+// The Back-button line: drawn below the D-pad cross, inside the same legend panel, telling the
+// player what Back does from this scene — pop back to the menu (SceneManager's own default
+// unconsumed-Back handling; see gurpil_game_view.c's comment on GurpilKeyBack). Two short stacked
+// lines rather than one "Back: menu" line: measured against FontSecondary (the font this whole
+// HUD uses), the combined phrase is 47px wide — too wide to sit this close to the vehicle column
+// — while each half ("Back:", "menu") is a comfortable 22px.
+enum {
+    CONTROL_LEGEND_BACK_GAP = 1, // gap between the cross's own reach and the first text row, px.
+    // FontSecondary's own glyph height (gui/canvas.c's canvas_font_params) — used only to place
+    // the first row's baseline below the gap above, not to draw anything itself.
+    CONTROL_LEGEND_BACK_LINE_HEIGHT = 7,
+    CONTROL_LEGEND_BACK_LINE_SPACING = 9, // baseline-to-baseline gap between the two rows, px —
+                                          // the same rhythm CONTROLS_LEGEND_ROW_SPACING uses.
+    CONTROL_LEGEND_BACK_LINE1_Y = CONTROL_LEGEND_CROSS_CENTER_Y + CONTROL_LEGEND_CROSS_REACH +
+                                  CONTROL_LEGEND_BACK_GAP + CONTROL_LEGEND_BACK_LINE_HEIGHT,
+    CONTROL_LEGEND_BACK_LINE2_Y = CONTROL_LEGEND_BACK_LINE1_Y + CONTROL_LEGEND_BACK_LINE_SPACING,
+};
+
+static const char *const CONTROL_LEGEND_BACK_LINE1_TEXT = "Back:";
+static const char *const CONTROL_LEGEND_BACK_LINE2_TEXT = "menu";
+
+// The in-play D-pad control legend: a small cross/plus cluster (see control_legend_cell,
+// include/ui/render_map.h, for the position math) always visible during play, one cell per
+// D-pad direction, each pairing a tiny outward-pointing arrow with the wheel-shape glyph that
+// direction mounts, plus the "Back: menu" line above. Sits on its own opaque panel — bottom-
+// left, an area the scrolling ground would otherwise fill solid black behind it — so the legend
+// stays legible regardless of the terrain scrolling underneath. The cell for the currently
+// mounted shape gets its own highlight frame, so the player also sees their current selection at
+// a glance.
+static void render_control_legend(Canvas *canvas, const GameState *game) {
+    canvas_set_color(canvas, ColorWhite);
+    canvas_draw_box(canvas, CONTROL_LEGEND_PANEL_X, CONTROL_LEGEND_PANEL_Y,
+                    CONTROL_LEGEND_PANEL_WIDTH, CONTROL_LEGEND_PANEL_HEIGHT);
+    canvas_set_color(canvas, ColorBlack);
+    canvas_draw_frame(canvas, CONTROL_LEGEND_PANEL_X, CONTROL_LEGEND_PANEL_Y,
+                      CONTROL_LEGEND_PANEL_WIDTH, CONTROL_LEGEND_PANEL_HEIGHT);
+
+    for (int index = 0; index < CONTROL_LEGEND_CELL_COUNT; index++) {
+        ControlLegendCell cell = control_legend_cell(index);
+
+        // Matches control_legend_cell's own Up/Right/Down/Left order (index 0..3): each arrow's
+        // tip points away from the cluster's center, past its anchor point (see the
+        // CONTROL_LEGEND_ARROW_OFFSET comment in render_map.h).
+        CanvasDirection arrow_direction;
+        switch (index) {
+            case 0: // Up
+                arrow_direction = CanvasDirectionBottomToTop;
+                break;
+            case 1: // Right
+                arrow_direction = CanvasDirectionLeftToRight;
+                break;
+            case 2: // Down
+                arrow_direction = CanvasDirectionTopToBottom;
+                break;
+            case 3: // Left
+            default:
+                arrow_direction = CanvasDirectionRightToLeft;
+                break;
+        }
+        canvas_draw_triangle(canvas, cell.arrow_x, cell.arrow_y, CONTROL_LEGEND_ARROW_SIZE,
+                             CONTROL_LEGEND_ARROW_SIZE, arrow_direction);
+        render_shape_glyph(canvas, cell.glyph_x, cell.glyph_y, CONTROL_LEGEND_GLYPH_RADIUS,
+                           cell.shape);
+
+        if (cell.shape == game->shape) {
+            int32_t r = CONTROL_LEGEND_GLYPH_RADIUS;
+            int32_t margin = CONTROL_LEGEND_HIGHLIGHT_MARGIN;
+            canvas_draw_frame(canvas, cell.glyph_x - r - margin, cell.glyph_y - r - margin,
+                              (r + margin) * 2, (r + margin) * 2);
+        }
+    }
+
+    canvas_set_font(canvas, FontSecondary);
+    canvas_draw_str_aligned(canvas, CONTROL_LEGEND_CROSS_CENTER_X, CONTROL_LEGEND_BACK_LINE1_Y,
+                            AlignCenter, AlignBottom, CONTROL_LEGEND_BACK_LINE1_TEXT);
+    canvas_draw_str_aligned(canvas, CONTROL_LEGEND_CROSS_CENTER_X, CONTROL_LEGEND_BACK_LINE2_Y,
+                            AlignCenter, AlignBottom, CONTROL_LEGEND_BACK_LINE2_TEXT);
 }
 
 // A brief "+Ns" readout near the timer, shown while the caller's own flash countdown
@@ -343,6 +430,12 @@ void gurpil_render(Canvas *canvas, const GameState *game, int32_t best, uint32_t
     render_hint_icon(canvas, game);
     if (show_checkpoint_flash) {
         render_checkpoint_flash(canvas);
+    }
+
+    // Hidden once the run is over: the game-over panel already covers this corner (and the rest
+    // of the screen), so drawing the legend underneath it would be wasted work.
+    if (!game_is_over(game)) {
+        render_control_legend(canvas, game);
     }
 
     if (game_is_over(game)) {

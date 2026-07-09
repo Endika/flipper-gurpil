@@ -103,3 +103,63 @@ typedef struct {
  * Left order matching shape_for_input_key). Out-of-range indices still return a position (no
  * clamping) — the caller only ever loops 0..CONTROLS_LEGEND_ROW_COUNT-1. */
 ControlsLegendRow controls_legend_row(int index);
+
+/*
+ * In-play D-pad control legend layout (no furi, no Canvas): a small cross/plus cluster, always
+ * visible during PLAY (unlike the full-screen list above, which is start/how-to-play only), that
+ * shows which D-pad direction mounts which wheel shape so the player can anticipate a shape swap
+ * instead of memorizing the mapping. The math lives here (not game_view.c) so it is host-testable
+ * the same way controls_legend_row already is; game_view.c only adds the furi-side Canvas calls
+ * (the opaque panel, the arrow's CanvasDirection, the current-shape highlight, and a "Back: menu"
+ * line below the cross — its own text/position stay in game_view.c since they need no host test).
+ */
+
+enum {
+    CONTROL_LEGEND_CELL_COUNT = 4, // one cell per D-pad direction that mounts a shape.
+
+    CONTROL_LEGEND_PANEL_X = 1,      // panel's left edge, screen px.
+    CONTROL_LEGEND_PANEL_WIDTH = 28, // fits the cross cluster (below) plus its frame.
+    // Panel's top edge: just below the tutorial hint icon's own highlight frame — whose bottom
+    // edge sits at row 22 (HINT_ICON_* in src/views/game_view.c) — so the two never overlap even
+    // though the hint icon only shows conditionally (game_hint_active).
+    CONTROL_LEGEND_PANEL_Y = 23,
+    // Panel's bottom edge is the screen's own last row: the panel is fully opaque (drawn after
+    // the terrain — see gurpil_render's draw order), so it needs no black margin of its own.
+    CONTROL_LEGEND_PANEL_HEIGHT = GURPIL_SCREEN_HEIGHT - CONTROL_LEGEND_PANEL_Y,
+
+    CONTROL_LEGEND_GLYPH_OFFSET = 5,     // distance from the cluster's center to each glyph, px.
+    CONTROL_LEGEND_GLYPH_RADIUS = 2,     // radius (or half-size) of each tiny shape glyph, px.
+    CONTROL_LEGEND_ARROW_OFFSET = 8,     // distance from the cluster's center to each arrow's
+                                         // anchor, px — farther out than the glyph, so the arrow
+                                         // reads as "the outer edge of the cross".
+    CONTROL_LEGEND_ARROW_SIZE = 3,       // triangle base/height for each tiny direction arrow, px.
+    CONTROL_LEGEND_HIGHLIGHT_MARGIN = 1, // padding between the mounted shape's glyph and the
+                                         // highlight frame drawn around it, px.
+    // The farthest any cross arm draws from the shared center: the arrow's anchor plus its own
+    // tip reach beyond that anchor (canvas_draw_triangle's apex sits height-1 px past (x, y)).
+    CONTROL_LEGEND_CROSS_REACH = CONTROL_LEGEND_ARROW_OFFSET + CONTROL_LEGEND_ARROW_SIZE - 1,
+
+    // The cross cluster's own shared center. Horizontally, the panel's own center. Vertically,
+    // offset down from the panel's top edge by CONTROL_LEGEND_CROSS_REACH plus a 1px margin, so
+    // every arm clears the panel's top frame — leaving the rest of the (taller-than-the-cross-
+    // needs) panel below free for game_view.c's own "Back: menu" line.
+    CONTROL_LEGEND_CROSS_CENTER_X = CONTROL_LEGEND_PANEL_X + CONTROL_LEGEND_PANEL_WIDTH / 2,
+    CONTROL_LEGEND_CROSS_CENTER_Y = CONTROL_LEGEND_PANEL_Y + CONTROL_LEGEND_CROSS_REACH + 1,
+};
+
+typedef struct {
+    int32_t glyph_x, glyph_y; // tiny shape-glyph center.
+    int32_t arrow_x, arrow_y; // direction arrow's base/height intersection point (the same (x, y)
+                              // canvas_draw_triangle takes) — its tip extends further from the
+                              // cluster center than this anchor, per the CONTROL_LEGEND_ARROW_SIZE
+                              // comment above.
+    ShapeId shape;            // the wheel shape this direction mounts.
+} ControlLegendCell;
+
+/* Returns the layout + mounted shape for legend cell `index` (0..CONTROL_LEGEND_CELL_COUNT-1, in
+ * Up/Right/Down/Left order — matching both shape_for_input_key and controls_legend_row). All four
+ * cells share one cluster center (the panel's own center); each sits CONTROL_LEGEND_GLYPH_OFFSET
+ * px from it along its own axis, with its direction arrow anchored CONTROL_LEGEND_ARROW_OFFSET px
+ * out along that same axis. Out-of-range indices fall back to the Left cell, matching this
+ * module's existing no-crash convention for the analogous shape_for_input_key default case. */
+ControlLegendCell control_legend_cell(int index);
