@@ -17,6 +17,7 @@ App(
         "src/domain/terrain.c",
         "src/domain/sim.c",
         "src/domain/endless.c",
+        "src/domain/record.c",
         "src/app/gurpil_app.c",
     ],
 )
