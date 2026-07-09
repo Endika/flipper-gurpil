@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/Endika/flipper-gurpil/compare/v0.1.3...v0.1.4) (2026-07-09)
+
+
+### Bug Fixes
+
+* **ui:** outline wheel shapes and draw Back as a button glyph for a clearer footer ([48682bd](https://github.com/Endika/flipper-gurpil/commit/48682bd52cb89b00c218eac9e30761e9bd923a3e))
+
 ## [0.1.3](https://github.com/Endika/flipper-gurpil/compare/v0.1.2...v0.1.3) (2026-07-09)
 
 
