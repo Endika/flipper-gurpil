@@ -22,8 +22,9 @@
 // Generous upper bound for a fixed poor shape to run out of time and reach game-over.
 #define MAX_TICKS 20000u
 
-// A well-played run is expected to still be alive this far in (see the sustain test below).
-#define SUSTAINED_TICKS 15000u
+// A well-played run is expected to still be alive this far in (see the sustain test below): far
+// past where a fixed poor shape has died, but well short of where even optimal play hits the wall.
+#define SUSTAINED_TICKS 1200u
 
 // How many post-game-over ticks to drive in the freeze check.
 #define POST_OVER_TICK_COUNT 50u

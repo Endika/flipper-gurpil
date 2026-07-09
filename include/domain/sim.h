@@ -25,7 +25,7 @@ enum {
     // == 256, i.e. 1.0x) applied to sim.c's base speed. sim.c's BASE_SPEED_FP aliases this same
     // value (single source of truth) since a caller outside sim.c (application/game.c's
     // game_speed_permille) needs it too, to scale the current speed onto a 0..1000 HUD gauge.
-    SIM_MAX_SPEED_FP = 8 << SIM_FP_SHIFT,
+    SIM_MAX_SPEED_FP = 24 << SIM_FP_SHIFT,
 };
 
 typedef struct {

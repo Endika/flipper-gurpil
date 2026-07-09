@@ -69,10 +69,14 @@ static void test_crossing_one_checkpoint_adds_bonus_and_advances_next(void) {
     endless_init(&state);
     endless_start(&state);
 
-    endless_tick(&state, 100u, EXPECT_CHECKPOINT_SPACING);
+    // Drain to a small known value first (distance stays at 0, so no checkpoint) so the single
+    // bonus below lands clear of MAX_TIME_MS and is checkable by plain addition (the cap is
+    // covered separately). A big dt_ms then crosses exactly the first checkpoint.
+    uint32_t drained_time = 500u;
+    endless_tick(&state, EXPECT_START_TIME_MS - drained_time, 0);
+    endless_tick(&state, 0u, EXPECT_CHECKPOINT_SPACING);
 
-    uint32_t expected_time = EXPECT_START_TIME_MS - 100u + EXPECT_FIRST_BONUS_MS;
-    assert(state.time_left_ms == expected_time);
+    assert(state.time_left_ms == drained_time + EXPECT_FIRST_BONUS_MS);
     assert(state.last_bonus_ms == EXPECT_FIRST_BONUS_MS);
     assert(state.next_checkpoint == EXPECT_CHECKPOINT_SPACING * 2);
     assert(state.checkpoints_hit == 1);
@@ -92,17 +96,18 @@ static void test_crossing_several_checkpoints_in_one_tick(void) {
     assert(state.time_left_ms == drained_time);
     assert(state.phase == EndlessRunning);
 
-    // A single big distance jump spanning 3 checkpoint spacings must grant 3 bonuses, each the
-    // decaying value for its own checkpoint index (0, 1, 2).
-    int32_t jump_distance = EXPECT_CHECKPOINT_SPACING * 3;
+    // A single big distance jump spanning 2 checkpoint spacings must grant 2 bonuses, each the
+    // decaying value for its own checkpoint index (0, 1). Two (not more) so the sum stays under
+    // the tight MAX_TIME_MS cap and is checkable by plain addition (the cap is covered separately).
+    int32_t jump_distance = EXPECT_CHECKPOINT_SPACING * 2;
     endless_tick(&state, 0u, jump_distance);
 
-    uint32_t expected_time = drained_time + endless_checkpoint_bonus_ms(0) +
-                             endless_checkpoint_bonus_ms(1) + endless_checkpoint_bonus_ms(2);
+    uint32_t expected_time =
+        drained_time + endless_checkpoint_bonus_ms(0) + endless_checkpoint_bonus_ms(1);
     assert(state.time_left_ms == expected_time);
-    assert(state.last_bonus_ms == endless_checkpoint_bonus_ms(2));
-    assert(state.next_checkpoint == EXPECT_CHECKPOINT_SPACING * 4);
-    assert(state.checkpoints_hit == 3);
+    assert(state.last_bonus_ms == endless_checkpoint_bonus_ms(1));
+    assert(state.next_checkpoint == EXPECT_CHECKPOINT_SPACING * 3);
+    assert(state.checkpoints_hit == 2);
     assert(state.distance == jump_distance);
 }
 

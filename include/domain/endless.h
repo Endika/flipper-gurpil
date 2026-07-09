@@ -23,12 +23,12 @@ typedef enum {
 
 // Tuning constants. Public so the app/UI layer can read the exact same values it displays.
 enum {
-    ENDLESS_START_TIME_MS = 20000,            // initial time budget for a fresh run, ms.
-    ENDLESS_CHECKPOINT_BONUS_BASE_MS = 8000,  // bonus for the very first checkpoint, ms.
-    ENDLESS_CHECKPOINT_BONUS_FLOOR_MS = 4000, // bonus never decays below this, ms.
-    ENDLESS_CHECKPOINT_BONUS_DECAY_MS = 60,   // bonus lost per checkpoint already crossed, ms.
+    ENDLESS_START_TIME_MS = 6000,             // initial time budget for a fresh run, ms.
+    ENDLESS_CHECKPOINT_BONUS_BASE_MS = 3000,  // bonus for the very first checkpoint, ms.
+    ENDLESS_CHECKPOINT_BONUS_FLOOR_MS = 1500, // bonus never decays below this, ms.
+    ENDLESS_CHECKPOINT_BONUS_DECAY_MS = 40,   // bonus lost per checkpoint already crossed, ms.
     ENDLESS_CHECKPOINT_SPACING = 45,          // distance units between checkpoints.
-    ENDLESS_MAX_TIME_MS = 30000,              // hard cap on time_left_ms; bonuses never exceed it.
+    ENDLESS_MAX_TIME_MS = 7000,               // hard cap on time_left_ms; bonuses never exceed it.
 };
 
 typedef struct {
