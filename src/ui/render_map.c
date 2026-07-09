@@ -59,14 +59,6 @@ void wheel_spoke_endpoint(uint32_t frame, int32_t radius, int32_t *dx, int32_t *
     *dy = (radius * direction->dy1000) / 1000;
 }
 
-ControlsLegendRow controls_legend_row(int index) {
-    ControlsLegendRow row;
-    row.label_x = CONTROLS_LEGEND_LABEL_X;
-    row.glyph_x = CONTROLS_LEGEND_GLYPH_X;
-    row.y = CONTROLS_LEGEND_FIRST_Y + index * CONTROLS_LEGEND_ROW_SPACING;
-    return row;
-}
-
 int32_t footer_legend_slot_center_x(int slot_index) {
     return slot_index * FOOTER_LEGEND_SLOT_WIDTH + FOOTER_LEGEND_SLOT_WIDTH / 2;
 }

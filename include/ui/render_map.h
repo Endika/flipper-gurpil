@@ -101,39 +101,13 @@ uint32_t wheel_rotation_step(uint32_t frame);
 void wheel_spoke_endpoint(uint32_t frame, int32_t radius, int32_t *dx, int32_t *dy);
 
 /*
- * Start-screen controls-legend layout (no furi, no Canvas): the four D-pad-to-shape rows are
- * evenly spaced so they, plus the title and the "OK: start" prompt, all fit on the 128x64
- * display without the app layer hardcoding pixel positions inline.
- */
-
-enum {
-    CONTROLS_LEGEND_ROW_COUNT = 4,   // one row per D-pad direction that mounts a shape.
-    CONTROLS_LEGEND_FIRST_Y = 24,    // baseline y of the first (Up) row.
-    CONTROLS_LEGEND_ROW_SPACING = 9, // baseline-to-baseline gap between rows, px.
-    CONTROLS_LEGEND_LABEL_X = 6,     // left x of the direction label text.
-    CONTROLS_LEGEND_GLYPH_X = 76,    // center x of the tiny shape glyph.
-};
-
-typedef struct {
-    int32_t label_x; // x to draw the direction label at (e.g. "Up").
-    int32_t glyph_x; // x to center the tiny shape glyph at.
-    int32_t y;       // shared baseline y for both.
-} ControlsLegendRow;
-
-/* Returns the layout for legend row `index` (0..CONTROLS_LEGEND_ROW_COUNT-1, in Up/Right/Down/
- * Left order matching shape_for_input_key). Out-of-range indices still return a position (no
- * clamping) — the caller only ever loops 0..CONTROLS_LEGEND_ROW_COUNT-1. */
-ControlsLegendRow controls_legend_row(int index);
-
-/*
  * In-play D-pad control legend layout (no furi, no Canvas): a horizontal strip of [arrow +
  * shape-glyph] pairs spanning the bottom FOOTER (see GURPIL_FOOTER_HEIGHT above), always visible
- * during PLAY (unlike the full-screen list above, which is start/how-to-play only), so the player
- * can see which D-pad direction mounts which wheel shape without memorizing the mapping. Arrow
- * and glyph sit side by side on one shared row (not stacked in two smaller rows) so both can use
- * the footer's full content height and read clearly on-device — the earlier stacked layout made
- * both too small to read. The math lives here (not game_view.c) so it is host-testable the same
- * way controls_legend_row already is; game_view.c only adds the furi-side Canvas calls (each
+ * during PLAY so the player can see which D-pad direction mounts which wheel shape without
+ * memorizing the mapping. Arrow and glyph sit side by side on one shared row (not stacked in two
+ * smaller rows) so both can use the footer's full content height and read clearly on-device — the
+ * earlier stacked layout made both too small to read. The math lives here (not game_view.c) so it
+ * is host-testable; game_view.c only adds the furi-side Canvas calls (each
  * arrow's CanvasDirection, the current-shape highlight, the play/footer separator line, and the
  * "Back" indicator in the strip's own 5th slot — its text/position stay in game_view.c since they
  * need no host test).
@@ -202,7 +176,7 @@ typedef struct {
 int32_t footer_legend_slot_center_x(int slot_index);
 
 /* Returns the layout + mounted shape for legend cell `index` (0..FOOTER_LEGEND_CELL_COUNT-1, in
- * Up/Right/Down/Left order — matching both shape_for_input_key and controls_legend_row). Every
+ * Up/Right/Down/Left order — matching shape_for_input_key). Every
  * cell shares the same arrow/glyph row (FOOTER_LEGEND_ROW_Y) and the same pair of x offsets from
  * its own slot center (FOOTER_LEGEND_ARROW_X_OFFSET, FOOTER_LEGEND_GLYPH_X_OFFSET); only the
  * slot's own center x (footer_legend_slot_center_x) varies between cells. Out-of-range indices

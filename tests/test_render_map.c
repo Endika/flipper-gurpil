@@ -106,22 +106,6 @@ static void test_wheel_spoke_endpoint_traces_a_full_rotation(void) {
     }
 }
 
-static void test_controls_legend_rows_are_evenly_spaced_and_ordered(void) {
-    for (int i = 1; i < CONTROLS_LEGEND_ROW_COUNT; i++) {
-        ControlsLegendRow previous = controls_legend_row(i - 1);
-        ControlsLegendRow current = controls_legend_row(i);
-        assert(current.y - previous.y == CONTROLS_LEGEND_ROW_SPACING);
-        assert(current.label_x == previous.label_x);
-        assert(current.glyph_x == previous.glyph_x);
-    }
-}
-
-static void test_controls_legend_rows_fit_on_screen(void) {
-    ControlsLegendRow last = controls_legend_row(CONTROLS_LEGEND_ROW_COUNT - 1);
-    assert(last.y < GURPIL_SCREEN_HEIGHT);
-    assert(last.glyph_x < GURPIL_SCREEN_WIDTH);
-}
-
 static void test_footer_legend_cell_shapes_match_shape_for_input_key(void) {
     // Up/Right/Down/Left order, index-for-index, must mirror shape_for_input_key so the in-play
     // legend never drifts out of sync with the actual D-pad mapping.
@@ -271,12 +255,6 @@ int main(void) {
 
     test_wheel_spoke_endpoint_traces_a_full_rotation();
     printf("test_wheel_spoke_endpoint_traces_a_full_rotation: PASS\n");
-
-    test_controls_legend_rows_are_evenly_spaced_and_ordered();
-    printf("test_controls_legend_rows_are_evenly_spaced_and_ordered: PASS\n");
-
-    test_controls_legend_rows_fit_on_screen();
-    printf("test_controls_legend_rows_fit_on_screen: PASS\n");
 
     test_footer_legend_cell_shapes_match_shape_for_input_key();
     printf("test_footer_legend_cell_shapes_match_shape_for_input_key: PASS\n");
