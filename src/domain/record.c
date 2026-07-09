@@ -6,17 +6,14 @@ enum {
 };
 
 size_t record_serialize(int32_t best, uint8_t *out, size_t out_len) {
-    // Check buffer size first, before writing anything.
     if (out_len < RECORD_BYTES) {
         return 0;
     }
 
     // Byte 0: magic marker
     out[0] = RECORD_MAGIC;
-
     // Byte 1: version
     out[1] = RECORD_VERSION;
-
     // Bytes 2-3: reserved for future use
     out[2] = 0x00;
     out[3] = 0x00;
@@ -32,37 +29,23 @@ size_t record_serialize(int32_t best, uint8_t *out, size_t out_len) {
 }
 
 int32_t record_parse(const uint8_t *buf, size_t len) {
-    // Safety: reject NULL or too-short buffers.
     if (buf == NULL || len < RECORD_BYTES) {
         return 0;
     }
-
-    // Validate magic marker.
-    if (buf[0] != RECORD_MAGIC) {
+    if (buf[0] != RECORD_MAGIC || buf[1] != RECORD_VERSION) {
         return 0;
     }
 
-    // Validate version.
-    if (buf[1] != RECORD_VERSION) {
-        return 0;
-    }
-
-    // Parse distance from bytes 4-7 as little-endian int32_t.
+    // Bytes 4-7: distance as little-endian int32_t; cast back to signed is bit-pattern preserving.
     uint32_t distance_u = ((uint32_t)buf[4]) | (((uint32_t)buf[5]) << 8) |
                           (((uint32_t)buf[6]) << 16) | (((uint32_t)buf[7]) << 24);
-
-    // Cast back to signed int32_t (bit-pattern preserving).
-    int32_t distance = (int32_t)distance_u;
-
-    return distance;
+    return (int32_t)distance_u;
 }
 
 int32_t record_update(int32_t prev_best, int32_t distance) {
-    // Clamp negative distance to prev_best (negative never lowers the record).
+    // A negative distance never lowers the record.
     if (distance < 0) {
         distance = prev_best;
     }
-
-    // Return the maximum.
     return distance > prev_best ? distance : prev_best;
 }
