@@ -38,9 +38,10 @@ static const char *const HUD_TIME_LEFT_FORMAT = "%lus";
 
 // Speed bar: a small horizontal gauge that fills with game_speed_permille(game), so changing the
 // mounted wheel shape visibly moves it — the mechanic was otherwise invisible. Placed in the top
-// strip, a screen row band that is always sky (never ground): the tallest terrain
-// (TERRAIN_HEIGHT_MAX) still draws no higher than screen row GURPIL_GROUND_BASELINE_Y -
-// TERRAIN_HEIGHT_MAX == 23, so nothing here ever needs to erase ground behind it first.
+// strip, close enough to the vehicle's own column that tall terrain (or the rider sprite atop it)
+// can reach into this row band — unlike the old, taller playfield, this one has no permanently
+// "sky" band left to rely on — so render_speed_bar erases its own footprint first, the same
+// technique render_game_over already uses for the same reason.
 enum {
     SPEED_BAR_X = 40,
     SPEED_BAR_Y = 10,
@@ -51,8 +52,8 @@ enum {
 };
 
 // Tutorial hint icon: the ideal shape for the upcoming terrain (game_hint_shape), shown inside a
-// small highlight frame near the HUD while game_hint_active holds. Same guaranteed-sky band as
-// the speed bar above.
+// small highlight frame near the HUD while game_hint_active holds. Same reachable-by-terrain row
+// band as the speed bar above, and erases its own footprint first for the same reason.
 enum {
     HINT_ICON_X = 8,
     HINT_ICON_Y = 17,
@@ -74,6 +75,9 @@ enum {
 enum {
     CHECKPOINT_FLASH_Y = HUD_TEXT_Y + 9, // just below the timer readout, same corner.
     MS_PER_SECOND = 1000,
+    // FontSecondary's own glyph height (gui/canvas.c's canvas_font_params) — sizes the erase box
+    // below, not used to draw anything itself.
+    CHECKPOINT_FLASH_TEXT_HEIGHT = 7,
 };
 static const char *const CHECKPOINT_FLASH_FORMAT = "+%lds";
 
@@ -99,13 +103,16 @@ static const char *const GAME_OVER_BEST_FORMAT = "Best: %ldm";
 static const char *const GAME_OVER_NEW_BEST_TEXT = "New best!";
 static const char *const GAME_OVER_PROMPT_TEXT = "OK: menu";
 
+// Fills each column from its ground_y down to GURPIL_GROUND_BASELINE_Y — the playfield's own
+// last row, now short of the actual screen bottom (see that constant's comment in render_map.h)
+// — so the terrain no longer paints the footer strip solid black behind the control legend.
 static void render_terrain(Canvas *canvas, const GameState *game) {
     int32_t distance = game_distance(game);
     for (int column = 0; column < GURPIL_SCREEN_WIDTH; column++) {
         int32_t world_x = screen_column_to_world_x(distance, column);
         TerrainSample sample = terrain_at(game->seed, world_x);
         uint8_t ground_y = terrain_height_to_screen_y(sample.height);
-        canvas_draw_line(canvas, column, ground_y, column, GURPIL_SCREEN_HEIGHT - 1);
+        canvas_draw_line(canvas, column, ground_y, column, GURPIL_GROUND_BASELINE_Y);
     }
 }
 
@@ -263,6 +270,13 @@ static void render_speed_bar(Canvas *canvas, const GameState *game) {
     int32_t inner_width = SPEED_BAR_WIDTH - 2 * SPEED_BAR_INNER_MARGIN;
     int32_t fill_width = (inner_width * (int32_t)permille) / SPEED_BAR_PERMILLE_SCALE;
 
+    // Erase first (see this enum's own comment above): whatever terrain or vehicle pixels the
+    // earlier render steps left in this footprint, the gauge's own empty (unfilled) portion must
+    // read as blank, not smeared.
+    canvas_set_color(canvas, ColorWhite);
+    canvas_draw_box(canvas, SPEED_BAR_X, SPEED_BAR_Y, SPEED_BAR_WIDTH, SPEED_BAR_HEIGHT);
+    canvas_set_color(canvas, ColorBlack);
+
     canvas_draw_frame(canvas, SPEED_BAR_X, SPEED_BAR_Y, SPEED_BAR_WIDTH, SPEED_BAR_HEIGHT);
     if (fill_width > 0) {
         canvas_draw_box(canvas, SPEED_BAR_X + SPEED_BAR_INNER_MARGIN,
@@ -283,56 +297,47 @@ static void render_hint_icon(Canvas *canvas, const GameState *game) {
     int32_t cx = HINT_ICON_X;
     int32_t cy = HINT_ICON_Y;
     int32_t r = HINT_ICON_RADIUS;
+    int32_t margin = HINT_ICON_FRAME_MARGIN;
+
+    // Erase first (see this enum's own comment above), for the same reason render_speed_bar does.
+    canvas_set_color(canvas, ColorWhite);
+    canvas_draw_box(canvas, cx - r - margin, cy - r - margin, (r + margin) * 2, (r + margin) * 2);
+    canvas_set_color(canvas, ColorBlack);
 
     render_shape_glyph(canvas, cx, cy, r, game_hint_shape(game));
-
-    int32_t margin = HINT_ICON_FRAME_MARGIN;
     canvas_draw_frame(canvas, cx - r - margin, cy - r - margin, (r + margin) * 2, (r + margin) * 2);
 }
 
-// The Back-button line: drawn below the D-pad cross, inside the same legend panel, telling the
-// player what Back does from this scene — pop back to the menu (SceneManager's own default
-// unconsumed-Back handling; see gurpil_game_view.c's comment on GurpilKeyBack). Two short stacked
-// lines rather than one "Back: menu" line: measured against FontSecondary (the font this whole
-// HUD uses), the combined phrase is 47px wide — too wide to sit this close to the vehicle column
-// — while each half ("Back:", "menu") is a comfortable 22px.
+// The Back indicator: the footer's own 5th slot (see FOOTER_LEGEND_BACK_SLOT_INDEX in
+// render_map.h), telling the player what Back does from this scene — pop back to the menu
+// (SceneManager's own default unconsumed-Back handling; see gurpil_game_view.c's comment on
+// GurpilKeyBack). Just the word "Back": the footer strip is its own row now (not a cramped
+// corner panel), so a single centered label reads clearly without needing a second stacked line.
 enum {
-    CONTROL_LEGEND_BACK_GAP = 1, // gap between the cross's own reach and the first text row, px.
-    // FontSecondary's own glyph height (gui/canvas.c's canvas_font_params) — used only to place
-    // the first row's baseline below the gap above, not to draw anything itself.
-    CONTROL_LEGEND_BACK_LINE_HEIGHT = 7,
-    CONTROL_LEGEND_BACK_LINE_SPACING = 9, // baseline-to-baseline gap between the two rows, px —
-                                          // the same rhythm CONTROLS_LEGEND_ROW_SPACING uses.
-    CONTROL_LEGEND_BACK_LINE1_Y = CONTROL_LEGEND_CROSS_CENTER_Y + CONTROL_LEGEND_CROSS_REACH +
-                                  CONTROL_LEGEND_BACK_GAP + CONTROL_LEGEND_BACK_LINE_HEIGHT,
-    CONTROL_LEGEND_BACK_LINE2_Y = CONTROL_LEGEND_BACK_LINE1_Y + CONTROL_LEGEND_BACK_LINE_SPACING,
+    // Vertically centers the label within the footer's content band (the rows below the
+    // play/footer separator line).
+    FOOTER_BACK_TEXT_Y = (FOOTER_LEGEND_CONTENT_TOP_Y + GURPIL_SCREEN_HEIGHT - 1) / 2,
 };
 
-static const char *const CONTROL_LEGEND_BACK_LINE1_TEXT = "Back:";
-static const char *const CONTROL_LEGEND_BACK_LINE2_TEXT = "menu";
+static const char *const FOOTER_BACK_TEXT = "Back";
 
-// The in-play D-pad control legend: a small cross/plus cluster (see control_legend_cell,
-// include/ui/render_map.h, for the position math) always visible during play, one cell per
-// D-pad direction, each pairing a tiny outward-pointing arrow with the wheel-shape glyph that
-// direction mounts, plus the "Back: menu" line above. Sits on its own opaque panel — bottom-
-// left, an area the scrolling ground would otherwise fill solid black behind it — so the legend
-// stays legible regardless of the terrain scrolling underneath. The cell for the currently
-// mounted shape gets its own highlight frame, so the player also sees their current selection at
-// a glance.
-static void render_control_legend(Canvas *canvas, const GameState *game) {
-    canvas_set_color(canvas, ColorWhite);
-    canvas_draw_box(canvas, CONTROL_LEGEND_PANEL_X, CONTROL_LEGEND_PANEL_Y,
-                    CONTROL_LEGEND_PANEL_WIDTH, CONTROL_LEGEND_PANEL_HEIGHT);
-    canvas_set_color(canvas, ColorBlack);
-    canvas_draw_frame(canvas, CONTROL_LEGEND_PANEL_X, CONTROL_LEGEND_PANEL_Y,
-                      CONTROL_LEGEND_PANEL_WIDTH, CONTROL_LEGEND_PANEL_HEIGHT);
+// The in-play control legend: a horizontal strip across the bottom FOOTER (see
+// GURPIL_FOOTER_HEIGHT, render_map.h), one slot per D-pad direction pairing a tiny
+// outward-pointing arrow with the wheel-shape glyph that direction mounts (see
+// footer_legend_cell for the position math), plus a 5th slot with the "Back" label. A thin
+// separator line marks where the (now shorter) playfield ends and the footer begins. Needs no
+// opaque background of its own: the terrain stops at GURPIL_GROUND_BASELINE_Y, above the footer,
+// so nothing ever scrolls underneath this strip. The cell for the currently mounted shape gets
+// its own highlight frame, so the player also sees their current selection at a glance.
+static void render_footer_legend(Canvas *canvas, const GameState *game) {
+    canvas_draw_line(canvas, 0, GURPIL_FOOTER_TOP_Y, GURPIL_SCREEN_WIDTH - 1, GURPIL_FOOTER_TOP_Y);
 
-    for (int index = 0; index < CONTROL_LEGEND_CELL_COUNT; index++) {
-        ControlLegendCell cell = control_legend_cell(index);
+    for (int index = 0; index < FOOTER_LEGEND_CELL_COUNT; index++) {
+        FooterLegendCell cell = footer_legend_cell(index);
 
-        // Matches control_legend_cell's own Up/Right/Down/Left order (index 0..3): each arrow's
-        // tip points away from the cluster's center, past its anchor point (see the
-        // CONTROL_LEGEND_ARROW_OFFSET comment in render_map.h).
+        // Matches footer_legend_cell's own Up/Right/Down/Left order (index 0..3): each arrow's
+        // tip points past its anchor point in the direction it represents (see the
+        // FOOTER_LEGEND_ARROW_REACH comment in render_map.h).
         CanvasDirection arrow_direction;
         switch (index) {
             case 0: // Up
@@ -349,24 +354,22 @@ static void render_control_legend(Canvas *canvas, const GameState *game) {
                 arrow_direction = CanvasDirectionRightToLeft;
                 break;
         }
-        canvas_draw_triangle(canvas, cell.arrow_x, cell.arrow_y, CONTROL_LEGEND_ARROW_SIZE,
-                             CONTROL_LEGEND_ARROW_SIZE, arrow_direction);
-        render_shape_glyph(canvas, cell.glyph_x, cell.glyph_y, CONTROL_LEGEND_GLYPH_RADIUS,
+        canvas_draw_triangle(canvas, cell.arrow_x, cell.arrow_y, FOOTER_LEGEND_ARROW_SIZE,
+                             FOOTER_LEGEND_ARROW_SIZE, arrow_direction);
+        render_shape_glyph(canvas, cell.glyph_x, cell.glyph_y, FOOTER_LEGEND_GLYPH_RADIUS,
                            cell.shape);
 
         if (cell.shape == game->shape) {
-            int32_t r = CONTROL_LEGEND_GLYPH_RADIUS;
-            int32_t margin = CONTROL_LEGEND_HIGHLIGHT_MARGIN;
+            int32_t r = FOOTER_LEGEND_GLYPH_RADIUS;
+            int32_t margin = FOOTER_LEGEND_HIGHLIGHT_MARGIN;
             canvas_draw_frame(canvas, cell.glyph_x - r - margin, cell.glyph_y - r - margin,
                               (r + margin) * 2, (r + margin) * 2);
         }
     }
 
     canvas_set_font(canvas, FontSecondary);
-    canvas_draw_str_aligned(canvas, CONTROL_LEGEND_CROSS_CENTER_X, CONTROL_LEGEND_BACK_LINE1_Y,
-                            AlignCenter, AlignBottom, CONTROL_LEGEND_BACK_LINE1_TEXT);
-    canvas_draw_str_aligned(canvas, CONTROL_LEGEND_CROSS_CENTER_X, CONTROL_LEGEND_BACK_LINE2_Y,
-                            AlignCenter, AlignBottom, CONTROL_LEGEND_BACK_LINE2_TEXT);
+    canvas_draw_str_aligned(canvas, footer_legend_slot_center_x(FOOTER_LEGEND_BACK_SLOT_INDEX),
+                            FOOTER_BACK_TEXT_Y, AlignCenter, AlignCenter, FOOTER_BACK_TEXT);
 }
 
 // A brief "+Ns" readout near the timer, shown while the caller's own flash countdown
@@ -378,6 +381,18 @@ static void render_checkpoint_flash(Canvas *canvas) {
     canvas_set_font(canvas, FontSecondary);
     snprintf(text, sizeof(text), CHECKPOINT_FLASH_FORMAT,
              (long)(ENDLESS_CHECKPOINT_BONUS_MS / MS_PER_SECOND));
+
+    // Erase first, for the same reason render_speed_bar's own comment explains: this readout
+    // sits in a row band tall terrain can now reach, so it can no longer assume blank sky behind
+    // it. Measures the actual formatted text so the erase box matches it exactly instead of
+    // guessing a fixed width.
+    uint16_t text_width = canvas_string_width(canvas, text);
+    canvas_set_color(canvas, ColorWhite);
+    canvas_draw_box(canvas, GURPIL_SCREEN_WIDTH - 1 - (int32_t)text_width,
+                    CHECKPOINT_FLASH_Y - CHECKPOINT_FLASH_TEXT_HEIGHT, text_width,
+                    CHECKPOINT_FLASH_TEXT_HEIGHT);
+    canvas_set_color(canvas, ColorBlack);
+
     canvas_draw_str_aligned(canvas, GURPIL_SCREEN_WIDTH - 1, CHECKPOINT_FLASH_Y, AlignRight,
                             AlignBottom, text);
 }
@@ -432,10 +447,11 @@ void gurpil_render(Canvas *canvas, const GameState *game, int32_t best, uint32_t
         render_checkpoint_flash(canvas);
     }
 
-    // Hidden once the run is over: the game-over panel already covers this corner (and the rest
-    // of the screen), so drawing the legend underneath it would be wasted work.
+    // Hidden once the run is over: the game-over panel already covers the screen's center (and
+    // most of the footer strip beneath it), so drawing the legend underneath would be wasted
+    // work.
     if (!game_is_over(game)) {
-        render_control_legend(canvas, game);
+        render_footer_legend(canvas, game);
     }
 
     if (game_is_over(game)) {

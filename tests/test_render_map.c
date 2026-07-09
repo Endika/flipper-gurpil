@@ -5,7 +5,6 @@
 
 #include <assert.h>
 #include <stdio.h>
-#include <stdlib.h>
 
 static void test_world_x_centers_on_vehicle_column(void) {
     // At the vehicle's own column, world x is exactly the current distance, regardless of how
@@ -123,54 +122,62 @@ static void test_controls_legend_rows_fit_on_screen(void) {
     assert(last.glyph_x < GURPIL_SCREEN_WIDTH);
 }
 
-static void test_control_legend_cell_shapes_match_shape_for_input_key(void) {
+static void test_footer_legend_cell_shapes_match_shape_for_input_key(void) {
     // Up/Right/Down/Left order, index-for-index, must mirror shape_for_input_key so the in-play
     // legend never drifts out of sync with the actual D-pad mapping.
-    assert(control_legend_cell(0).shape == shape_for_input_key(GurpilKeyUp));
-    assert(control_legend_cell(1).shape == shape_for_input_key(GurpilKeyRight));
-    assert(control_legend_cell(2).shape == shape_for_input_key(GurpilKeyDown));
-    assert(control_legend_cell(3).shape == shape_for_input_key(GurpilKeyLeft));
+    assert(footer_legend_cell(0).shape == shape_for_input_key(GurpilKeyUp));
+    assert(footer_legend_cell(1).shape == shape_for_input_key(GurpilKeyRight));
+    assert(footer_legend_cell(2).shape == shape_for_input_key(GurpilKeyDown));
+    assert(footer_legend_cell(3).shape == shape_for_input_key(GurpilKeyLeft));
 }
 
-static void test_control_legend_cell_arrow_sits_farther_out_than_glyph(void) {
-    // Each direction's arrow must anchor farther from the cluster's shared center than its
-    // glyph, on the axis they both share — otherwise the arrow would overlap or sit inside the
-    // shape glyph instead of pointing outward past it.
-    for (int index = 0; index < CONTROL_LEGEND_CELL_COUNT; index++) {
-        ControlLegendCell cell = control_legend_cell(index);
-        int32_t glyph_offset =
-            abs((int)(cell.glyph_x - cell.arrow_x)) + abs((int)(cell.glyph_y - cell.arrow_y));
-        assert(glyph_offset > 0);
+static void test_footer_legend_cell_slots_are_evenly_spaced_and_ordered(void) {
+    // Every cell shares the arrow/glyph anchor rows and sits above its own slot's center x, in
+    // ascending slot order (Up/Right/Down/Left == slot 0..3) — otherwise the legend would read
+    // out of order or cells would overlap.
+    for (int index = 1; index < FOOTER_LEGEND_CELL_COUNT; index++) {
+        FooterLegendCell previous = footer_legend_cell(index - 1);
+        FooterLegendCell current = footer_legend_cell(index);
+        assert(current.glyph_x - previous.glyph_x == FOOTER_LEGEND_SLOT_WIDTH);
+        assert(current.arrow_x == current.glyph_x);
+        assert(current.arrow_y == previous.arrow_y);
+        assert(current.glyph_y == previous.glyph_y);
     }
-    assert(control_legend_cell(0).arrow_y < control_legend_cell(0).glyph_y); // Up: arrow higher.
-    assert(control_legend_cell(1).arrow_x >
-           control_legend_cell(1).glyph_x); // Right: arrow further right.
-    assert(control_legend_cell(2).arrow_y > control_legend_cell(2).glyph_y); // Down: arrow lower.
-    assert(control_legend_cell(3).arrow_x <
-           control_legend_cell(3).glyph_x); // Left: arrow further left.
 }
 
-static void test_control_legend_cluster_fits_inside_its_own_panel(void) {
-    // The farthest-out point of every cell (the arrow's anchor, plus the triangle's own tip
-    // reach) must stay within the panel's frame, so the cluster never pokes out past its opaque
-    // background — the panel is taller than the cross alone needs (game_view.c uses the extra
-    // room below for its own "Back: menu" line), so this only bounds the cross's own reach, not
-    // the whole panel height.
-    int32_t panel_left = CONTROL_LEGEND_PANEL_X;
-    int32_t panel_right = CONTROL_LEGEND_PANEL_X + CONTROL_LEGEND_PANEL_WIDTH - 1;
-    int32_t panel_top = CONTROL_LEGEND_PANEL_Y;
-    int32_t panel_bottom = CONTROL_LEGEND_PANEL_Y + CONTROL_LEGEND_PANEL_HEIGHT - 1;
-    int32_t tip_reach = CONTROL_LEGEND_ARROW_SIZE - 1;
-
-    for (int index = 0; index < CONTROL_LEGEND_CELL_COUNT; index++) {
-        ControlLegendCell cell = control_legend_cell(index);
-        assert(cell.arrow_x - tip_reach >= panel_left);
-        assert(cell.arrow_x + tip_reach <= panel_right);
-        assert(cell.arrow_y - tip_reach >= panel_top);
-        assert(cell.arrow_y + tip_reach <= panel_bottom);
+static void test_footer_legend_cell_arrow_sits_above_glyph(void) {
+    // Every cell stacks its direction arrow above its shape glyph (the strip is horizontal, one
+    // slot per direction, so — unlike a 2D cross — there is no per-direction spatial offset:
+    // game_view.c's own CanvasDirection choice is what makes each arrow point the right way).
+    for (int index = 0; index < FOOTER_LEGEND_CELL_COUNT; index++) {
+        FooterLegendCell cell = footer_legend_cell(index);
+        assert(cell.arrow_y < cell.glyph_y);
     }
-    assert(panel_bottom < GURPIL_SCREEN_HEIGHT);
-    assert(panel_right < GURPIL_SCREEN_WIDTH);
+}
+
+static void test_footer_legend_cells_fit_inside_the_footer(void) {
+    // The farthest-out point of every cell (the arrow's tip reach above it, and the glyph's own
+    // highlight frame around it) must stay within the footer band, below the play/footer
+    // separator line and above the screen's own last row.
+    int32_t arrow_tip_reach = FOOTER_LEGEND_ARROW_SIZE - 1;
+    int32_t glyph_reach = FOOTER_LEGEND_GLYPH_RADIUS + FOOTER_LEGEND_HIGHLIGHT_MARGIN;
+
+    for (int index = 0; index < FOOTER_LEGEND_CELL_COUNT; index++) {
+        FooterLegendCell cell = footer_legend_cell(index);
+        assert(cell.arrow_y - arrow_tip_reach >= GURPIL_FOOTER_TOP_Y);
+        assert(cell.glyph_y + glyph_reach <= GURPIL_SCREEN_HEIGHT - 1);
+        assert(cell.glyph_x >= 0 && cell.glyph_x < GURPIL_SCREEN_WIDTH);
+    }
+    assert(GURPIL_FOOTER_TOP_Y < GURPIL_SCREEN_HEIGHT);
+    assert(GURPIL_GROUND_BASELINE_Y < GURPIL_FOOTER_TOP_Y);
+}
+
+static void test_footer_legend_slot_center_x_covers_the_back_slot(void) {
+    // The 5th slot (Back, game_view.c's own indicator — not a shape-mapped cell) must still land
+    // on screen, evenly spaced alongside the 4 shape cells.
+    int32_t back_x = footer_legend_slot_center_x(FOOTER_LEGEND_BACK_SLOT_INDEX);
+    assert(back_x > footer_legend_cell(FOOTER_LEGEND_CELL_COUNT - 1).glyph_x);
+    assert(back_x < GURPIL_SCREEN_WIDTH);
 }
 
 int main(void) {
@@ -219,14 +226,20 @@ int main(void) {
     test_controls_legend_rows_fit_on_screen();
     printf("test_controls_legend_rows_fit_on_screen: PASS\n");
 
-    test_control_legend_cell_shapes_match_shape_for_input_key();
-    printf("test_control_legend_cell_shapes_match_shape_for_input_key: PASS\n");
+    test_footer_legend_cell_shapes_match_shape_for_input_key();
+    printf("test_footer_legend_cell_shapes_match_shape_for_input_key: PASS\n");
 
-    test_control_legend_cell_arrow_sits_farther_out_than_glyph();
-    printf("test_control_legend_cell_arrow_sits_farther_out_than_glyph: PASS\n");
+    test_footer_legend_cell_slots_are_evenly_spaced_and_ordered();
+    printf("test_footer_legend_cell_slots_are_evenly_spaced_and_ordered: PASS\n");
 
-    test_control_legend_cluster_fits_inside_its_own_panel();
-    printf("test_control_legend_cluster_fits_inside_its_own_panel: PASS\n");
+    test_footer_legend_cell_arrow_sits_above_glyph();
+    printf("test_footer_legend_cell_arrow_sits_above_glyph: PASS\n");
+
+    test_footer_legend_cells_fit_inside_the_footer();
+    printf("test_footer_legend_cells_fit_inside_the_footer: PASS\n");
+
+    test_footer_legend_slot_center_x_covers_the_back_slot();
+    printf("test_footer_legend_slot_center_x_covers_the_back_slot: PASS\n");
 
     return 0;
 }

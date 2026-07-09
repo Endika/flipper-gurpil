@@ -64,39 +64,35 @@ ControlsLegendRow controls_legend_row(int index) {
     return row;
 }
 
-ControlLegendCell control_legend_cell(int index) {
-    int32_t center_x = CONTROL_LEGEND_CROSS_CENTER_X;
-    int32_t center_y = CONTROL_LEGEND_CROSS_CENTER_Y;
-    ControlLegendCell cell;
+int32_t footer_legend_slot_center_x(int slot_index) {
+    return slot_index * FOOTER_LEGEND_SLOT_WIDTH + FOOTER_LEGEND_SLOT_WIDTH / 2;
+}
+
+FooterLegendCell footer_legend_cell(int index) {
+    FooterLegendCell cell;
+    cell.glyph_y = FOOTER_LEGEND_GLYPH_Y;
+    cell.arrow_y = FOOTER_LEGEND_ARROW_Y;
 
     switch (index) {
         case 0: // Up
-            cell.glyph_x = center_x;
-            cell.glyph_y = center_y - CONTROL_LEGEND_GLYPH_OFFSET;
-            cell.arrow_x = center_x;
-            cell.arrow_y = center_y - CONTROL_LEGEND_ARROW_OFFSET;
+            cell.glyph_x = footer_legend_slot_center_x(0);
+            cell.arrow_x = cell.glyph_x;
             cell.shape = ShapeCircle;
             break;
         case 1: // Right
-            cell.glyph_x = center_x + CONTROL_LEGEND_GLYPH_OFFSET;
-            cell.glyph_y = center_y;
-            cell.arrow_x = center_x + CONTROL_LEGEND_ARROW_OFFSET;
-            cell.arrow_y = center_y;
+            cell.glyph_x = footer_legend_slot_center_x(1);
+            cell.arrow_x = cell.glyph_x;
             cell.shape = ShapeLine;
             break;
         case 2: // Down
-            cell.glyph_x = center_x;
-            cell.glyph_y = center_y + CONTROL_LEGEND_GLYPH_OFFSET;
-            cell.arrow_x = center_x;
-            cell.arrow_y = center_y + CONTROL_LEGEND_ARROW_OFFSET;
+            cell.glyph_x = footer_legend_slot_center_x(2);
+            cell.arrow_x = cell.glyph_x;
             cell.shape = ShapeSquare;
             break;
         case 3: // Left
         default:
-            cell.glyph_x = center_x - CONTROL_LEGEND_GLYPH_OFFSET;
-            cell.glyph_y = center_y;
-            cell.arrow_x = center_x - CONTROL_LEGEND_ARROW_OFFSET;
-            cell.arrow_y = center_y;
+            cell.glyph_x = footer_legend_slot_center_x(3);
+            cell.arrow_x = cell.glyph_x;
             cell.shape = ShapeTriangle;
             break;
     }
