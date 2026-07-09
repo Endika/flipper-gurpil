@@ -36,7 +36,8 @@ OBJS_SIM = terrain.o shapes.o sim.o test_sim.o
 OBJS_ENDLESS = endless.o test_endless.o
 OBJS_RECORD = record.o test_record.o
 OBJS_GAME = terrain.o shapes.o sim.o endless.o game.o test_game.o
-TEST_BINS = test_gurpil_smoke test_gurpil_shapes test_gurpil_terrain test_gurpil_sim test_gurpil_endless test_gurpil_record test_gurpil_game
+OBJS_RENDER_MAP = render_map.o test_render_map.o
+TEST_BINS = test_gurpil_smoke test_gurpil_shapes test_gurpil_terrain test_gurpil_sim test_gurpil_endless test_gurpil_record test_gurpil_game test_gurpil_render_map
 
 test: $(TEST_BINS)
 	./test_gurpil_smoke
@@ -46,6 +47,7 @@ test: $(TEST_BINS)
 	./test_gurpil_endless
 	./test_gurpil_record
 	./test_gurpil_game
+	./test_gurpil_render_map
 
 test_gurpil_smoke: $(OBJS_SMOKE)
 	$(CC) $(CFLAGS) -o test_gurpil_smoke $(OBJS_SMOKE)
@@ -67,6 +69,9 @@ test_gurpil_record: $(OBJS_RECORD)
 
 test_gurpil_game: $(OBJS_GAME)
 	$(CC) $(CFLAGS) -o test_gurpil_game $(OBJS_GAME)
+
+test_gurpil_render_map: $(OBJS_RENDER_MAP)
+	$(CC) $(CFLAGS) -o test_gurpil_render_map $(OBJS_RENDER_MAP)
 
 version_info.o: src/domain/version_info.c include/domain/version_info.h
 	$(CC) $(CFLAGS) -c src/domain/version_info.c -o version_info.o
@@ -110,6 +115,12 @@ game.o: src/application/game.c include/application/game.h include/domain/sim.h i
 test_game.o: tests/test_game.c include/application/game.h include/domain/sim.h include/domain/endless.h include/domain/shapes.h include/domain/terrain.h include/domain/terrain_kind.h
 	$(CC) $(CFLAGS) -c tests/test_game.c -o test_game.o
 
+render_map.o: src/ui/render_map.c include/ui/render_map.h include/domain/shapes.h include/domain/terrain.h include/domain/terrain_kind.h
+	$(CC) $(CFLAGS) -c src/ui/render_map.c -o render_map.o
+
+test_render_map.o: tests/test_render_map.c include/ui/render_map.h include/domain/shapes.h include/domain/terrain.h include/domain/terrain_kind.h
+	$(CC) $(CFLAGS) -c tests/test_render_map.c -o test_render_map.o
+
 # --- format / lint ---
 FORMAT_FILES := $(shell git ls-files '*.c' '*.h' 2>/dev/null)
 ifeq ($(strip $(FORMAT_FILES)),)
@@ -122,21 +133,28 @@ format:
 # unusedFunction suppressions: main.c's entry point, platform_random_seed, and
 # best_store_load/best_store_save are each only called from code outside this host-analyzed
 # source set (the firmware loader; the Task 11 app wiring, respectively) — real callers exist,
-# cppcheck just can't see them here.
+# cppcheck just can't see them here. gurpil_render is likewise Task 10's furi-facing render
+# entry point, only called from the Task 11 app's render callback (not written yet). render_map.c
+# needs no such suppression: every function it exposes already has a real caller today —
+# tests/test_render_map.c exercises all of them, and game_view.c also calls the two screen-
+# mapping helpers.
 linter:
 	cppcheck --enable=all --inline-suppr -I. \
 		--suppress=missingIncludeSystem \
 		--suppress=unusedFunction:main.c \
 		--suppress=unusedFunction:src/platform/random_port.c \
 		--suppress=unusedFunction:src/persistence/best_store.c \
+		--suppress=unusedFunction:src/views/game_view.c \
 		src/domain/version_info.c src/domain/shapes.c src/domain/terrain.c src/domain/sim.c \
 		src/domain/endless.c src/domain/record.c \
 		src/application/game.c \
 		src/platform/random_port.c \
 		src/persistence/best_store.c \
+		src/ui/render_map.c \
+		src/views/game_view.c \
 		src/app/gurpil_app.c main.c \
 		tests/test_smoke.c tests/test_shapes.c tests/test_terrain.c tests/test_sim.c \
-		tests/test_endless.c tests/test_record.c tests/test_game.c
+		tests/test_endless.c tests/test_record.c tests/test_game.c tests/test_render_map.c
 
 # --- build the .fap via the firmware tree (ufbt/fbt; not available in this sandbox) ---
 prepare:
@@ -159,4 +177,4 @@ fap: prepare clean_firmware clean
 	fi
 
 clean:
-	rm -f *.o tests/*.o test_gurpil test_gurpil_smoke test_gurpil_shapes test_gurpil_terrain test_gurpil_sim test_gurpil_endless test_gurpil_record test_gurpil_game
+	rm -f *.o tests/*.o test_gurpil test_gurpil_smoke test_gurpil_shapes test_gurpil_terrain test_gurpil_sim test_gurpil_endless test_gurpil_record test_gurpil_game test_gurpil_render_map

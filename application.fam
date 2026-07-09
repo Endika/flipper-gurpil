@@ -21,6 +21,8 @@ App(
         "src/application/game.c",
         "src/platform/random_port.c",
         "src/persistence/best_store.c",
+        "src/ui/render_map.c",
+        "src/views/game_view.c",
         "src/app/gurpil_app.c",
     ],
 )
