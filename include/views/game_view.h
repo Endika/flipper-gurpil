@@ -22,15 +22,12 @@
  * Seam for the wheel-spin animation: `frame`, a per-tick counter, is supplied by the caller
  * (rather than kept as static state in this file) so the spin stays deterministic and the app
  * fully controls when it advances (it must freeze once the run is over, and must not run at all
- * on the start screen — see gurpil_app.c).
+ * while the Game scene isn't entered — see src/views/gurpil_game_view.c and
+ * src/scenes/gurpil_scene_game.c).
  */
 
 /* Draws one frame: the scrolling terrain silhouette, the rider-on-a-scooter vehicle with its
  * currently mounted wheel shape spinning per `frame`, a distance+timer HUD, and — once
- * game_is_over(game) — a game-over overlay showing the run's final distance alongside `best`. */
+ * game_is_over(game) — an opaque game-over panel showing the run's final distance alongside
+ * `best`. */
 void gurpil_render(Canvas *canvas, const GameState *game, int32_t best, uint32_t frame);
-
-/* Draws the pre-run start screen: the title, a legend mapping each D-pad direction to the wheel
- * shape it mounts, and an "OK: start" prompt. Never touches GameState — the endless timer must
- * not be ticking while this is on screen (see gurpil_app.c's AppScreenStart). */
-void gurpil_render_start(Canvas *canvas);

@@ -23,6 +23,12 @@ App(
         "src/persistence/best_store.c",
         "src/ui/render_map.c",
         "src/views/game_view.c",
+        "src/views/gurpil_game_view.c",
+        "src/scenes/gurpil_scene.c",
+        "src/scenes/gurpil_scene_menu.c",
+        "src/scenes/gurpil_scene_game.c",
+        "src/scenes/gurpil_scene_how_to_play.c",
+        "src/scenes/gurpil_scene_credits.c",
         "src/app/gurpil_app.c",
     ],
 )

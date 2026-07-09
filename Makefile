@@ -146,6 +146,12 @@ linter:
 		src/persistence/best_store.c \
 		src/ui/render_map.c \
 		src/views/game_view.c \
+		src/views/gurpil_game_view.c \
+		src/scenes/gurpil_scene.c \
+		src/scenes/gurpil_scene_menu.c \
+		src/scenes/gurpil_scene_game.c \
+		src/scenes/gurpil_scene_how_to_play.c \
+		src/scenes/gurpil_scene_credits.c \
 		src/app/gurpil_app.c main.c \
 		tests/test_smoke.c tests/test_shapes.c tests/test_terrain.c tests/test_sim.c \
 		tests/test_endless.c tests/test_record.c tests/test_game.c tests/test_render_map.c

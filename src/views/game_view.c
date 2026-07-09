@@ -25,17 +25,34 @@ enum {
     RIDER_HEAD_RADIUS = 2,      // round head radius, px.
 };
 
-// Tiny shape glyph used on the start screen's controls legend — smaller than the in-run wheel
-// glyph since it just needs to be recognizable next to a direction label, not animated.
-enum {
-    LEGEND_GLYPH_RADIUS = 3,
-};
-
 // HUD text baseline, screen px from the top; both corners share it so distance and timer sit
 // on the same row.
 enum {
     HUD_TEXT_Y = 7,
 };
+
+// HUD units: a bare number in each corner reads as ambiguous ("which one is the timer?"), so
+// each value carries its unit suffix — distance in meters (left), time left in seconds (right).
+static const char *const HUD_DISTANCE_FORMAT = "%ldm";
+static const char *const HUD_TIME_LEFT_FORMAT = "%lus";
+
+// Game-over overlay: an opaque panel, centered on screen, that first erases the busy scrolling
+// terrain/vehicle behind it (canvas_draw_box in ColorWhite) before the outcome text is drawn on
+// top in ColorBlack — the previous overlay drew straight over the silhouette and became
+// unreadable whenever ground filled the row a text line sat on.
+enum {
+    GAME_OVER_PANEL_WIDTH = 104,
+    GAME_OVER_PANEL_HEIGHT = 54,
+    GAME_OVER_TITLE_Y = 16,
+    GAME_OVER_DISTANCE_Y = 30,
+    GAME_OVER_BEST_Y = 42,
+    GAME_OVER_PROMPT_Y = 53,
+};
+
+static const char *const GAME_OVER_TITLE_TEXT = "Game Over";
+static const char *const GAME_OVER_DISTANCE_FORMAT = "Distance: %ldm";
+static const char *const GAME_OVER_BEST_FORMAT = "Best: %ldm";
+static const char *const GAME_OVER_PROMPT_TEXT = "OK: menu";
 
 static void render_terrain(Canvas *canvas, const GameState *game) {
     int32_t distance = game_distance(game);
@@ -136,10 +153,11 @@ static void render_hud(Canvas *canvas, const GameState *game) {
 
     canvas_set_font(canvas, FontSecondary);
 
-    snprintf(text, sizeof(text), "%ld", (long)game_distance(game));
+    snprintf(text, sizeof(text), HUD_DISTANCE_FORMAT, (long)game_distance(game));
     canvas_draw_str(canvas, 1, HUD_TEXT_Y, text);
 
-    snprintf(text, sizeof(text), "%lu", (unsigned long)(game_time_left(game) / 1000));
+    snprintf(text, sizeof(text), HUD_TIME_LEFT_FORMAT,
+             (unsigned long)(game_time_left(game) / 1000));
     canvas_draw_str_aligned(canvas, GURPIL_SCREEN_WIDTH - 1, HUD_TEXT_Y, AlignRight, AlignBottom,
                             text);
 }
@@ -147,75 +165,31 @@ static void render_hud(Canvas *canvas, const GameState *game) {
 static void render_game_over(Canvas *canvas, const GameState *game, int32_t best) {
     char text[24];
 
+    int32_t panel_x = (GURPIL_SCREEN_WIDTH - GAME_OVER_PANEL_WIDTH) / 2;
+    int32_t panel_y = (GURPIL_SCREEN_HEIGHT - GAME_OVER_PANEL_HEIGHT) / 2;
+
+    // Erase the terrain/vehicle behind the panel, then frame it, before any text is drawn.
+    canvas_set_color(canvas, ColorWhite);
+    canvas_draw_box(canvas, panel_x, panel_y, GAME_OVER_PANEL_WIDTH, GAME_OVER_PANEL_HEIGHT);
+    canvas_set_color(canvas, ColorBlack);
+    canvas_draw_frame(canvas, panel_x, panel_y, GAME_OVER_PANEL_WIDTH, GAME_OVER_PANEL_HEIGHT);
+
     canvas_set_font(canvas, FontPrimary);
-    canvas_draw_str_aligned(canvas, GURPIL_SCREEN_WIDTH / 2, 24, AlignCenter, AlignCenter,
-                            "Game Over");
+    canvas_draw_str_aligned(canvas, GURPIL_SCREEN_WIDTH / 2, GAME_OVER_TITLE_Y, AlignCenter,
+                            AlignCenter, GAME_OVER_TITLE_TEXT);
 
     canvas_set_font(canvas, FontSecondary);
 
-    snprintf(text, sizeof(text), "Distance: %ld", (long)game_distance(game));
-    canvas_draw_str_aligned(canvas, GURPIL_SCREEN_WIDTH / 2, 38, AlignCenter, AlignCenter, text);
+    snprintf(text, sizeof(text), GAME_OVER_DISTANCE_FORMAT, (long)game_distance(game));
+    canvas_draw_str_aligned(canvas, GURPIL_SCREEN_WIDTH / 2, GAME_OVER_DISTANCE_Y, AlignCenter,
+                            AlignCenter, text);
 
-    snprintf(text, sizeof(text), "Best: %ld", (long)best);
-    canvas_draw_str_aligned(canvas, GURPIL_SCREEN_WIDTH / 2, 48, AlignCenter, AlignCenter, text);
+    snprintf(text, sizeof(text), GAME_OVER_BEST_FORMAT, (long)best);
+    canvas_draw_str_aligned(canvas, GURPIL_SCREEN_WIDTH / 2, GAME_OVER_BEST_Y, AlignCenter,
+                            AlignCenter, text);
 
-    canvas_draw_str_aligned(canvas, GURPIL_SCREEN_WIDTH / 2, 58, AlignCenter, AlignCenter,
-                            "OK: menu");
-}
-
-// One direction label + the D-pad key that shape_for_input_key maps to a shape, in the order
-// the legend rows are drawn. The shape itself is looked up from shape_for_input_key rather than
-// duplicated here, so the legend can never drift out of sync with the actual controls.
-static const struct {
-    const char *label;
-    GurpilKey key;
-} CONTROLS_LEGEND_ENTRIES[CONTROLS_LEGEND_ROW_COUNT] = {
-    {"Up", GurpilKeyUp},
-    {"Right", GurpilKeyRight},
-    {"Down", GurpilKeyDown},
-    {"Left", GurpilKeyLeft},
-};
-
-// A small, static (non-animated) version of the same glyphs render_wheel draws, just for the
-// controls legend — it only needs to be recognizable next to its direction label.
-static void render_legend_glyph(Canvas *canvas, int32_t x, int32_t y, ShapeId shape) {
-    int32_t radius = LEGEND_GLYPH_RADIUS;
-
-    switch (shape) {
-        case ShapeCircle:
-            canvas_draw_circle(canvas, x, y, radius);
-            break;
-        case ShapeLine:
-            canvas_draw_line(canvas, x - radius, y, x + radius, y);
-            break;
-        case ShapeSquare:
-            canvas_draw_frame(canvas, x - radius, y - radius, radius * 2, radius * 2);
-            break;
-        case ShapeTriangle:
-        case ShapeCount:
-        default:
-            canvas_draw_triangle(canvas, x, y + radius, radius * 2, radius * 2,
-                                 CanvasDirectionBottomToTop);
-            break;
-    }
-}
-
-void gurpil_render_start(Canvas *canvas) {
-    canvas_clear(canvas);
-
-    canvas_set_font(canvas, FontPrimary);
-    canvas_draw_str_aligned(canvas, GURPIL_SCREEN_WIDTH / 2, 9, AlignCenter, AlignCenter, "Gurpil");
-
-    canvas_set_font(canvas, FontSecondary);
-    for (int i = 0; i < CONTROLS_LEGEND_ROW_COUNT; i++) {
-        ControlsLegendRow row = controls_legend_row(i);
-        canvas_draw_str(canvas, row.label_x, row.y, CONTROLS_LEGEND_ENTRIES[i].label);
-        ShapeId shape = shape_for_input_key(CONTROLS_LEGEND_ENTRIES[i].key);
-        render_legend_glyph(canvas, row.glyph_x, row.y - LEGEND_GLYPH_RADIUS, shape);
-    }
-
-    canvas_draw_str_aligned(canvas, GURPIL_SCREEN_WIDTH / 2, GURPIL_SCREEN_HEIGHT - 4, AlignCenter,
-                            AlignCenter, "OK: start");
+    canvas_draw_str_aligned(canvas, GURPIL_SCREEN_WIDTH / 2, GAME_OVER_PROMPT_Y, AlignCenter,
+                            AlignCenter, GAME_OVER_PROMPT_TEXT);
 }
 
 void gurpil_render(Canvas *canvas, const GameState *game, int32_t best, uint32_t frame) {
