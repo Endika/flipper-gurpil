@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/Endika/flipper-gurpil/compare/v0.1.4...v0.1.5) (2026-07-09)
+
+
+### Bug Fixes
+
+* **endless:** decay the checkpoint time bonus with distance for a rising difficulty curve ([9dd3d4e](https://github.com/Endika/flipper-gurpil/commit/9dd3d4e0a821f91cf9a32642cacb90be57b5c576))
+
 ## [0.1.4](https://github.com/Endika/flipper-gurpil/compare/v0.1.3...v0.1.4) (2026-07-09)
 
 
