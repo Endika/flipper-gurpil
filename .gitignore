@@ -1,6 +1,5 @@
 *.o
 *.fap
 build/
-.superpowers
 test_gurpil*
 local.mk
