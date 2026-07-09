@@ -35,7 +35,8 @@ OBJS_TERRAIN = terrain.o test_terrain.o
 OBJS_SIM = terrain.o shapes.o sim.o test_sim.o
 OBJS_ENDLESS = endless.o test_endless.o
 OBJS_RECORD = record.o test_record.o
-TEST_BINS = test_gurpil_smoke test_gurpil_shapes test_gurpil_terrain test_gurpil_sim test_gurpil_endless test_gurpil_record
+OBJS_GAME = terrain.o shapes.o sim.o endless.o game.o test_game.o
+TEST_BINS = test_gurpil_smoke test_gurpil_shapes test_gurpil_terrain test_gurpil_sim test_gurpil_endless test_gurpil_record test_gurpil_game
 
 test: $(TEST_BINS)
 	./test_gurpil_smoke
@@ -44,6 +45,7 @@ test: $(TEST_BINS)
 	./test_gurpil_sim
 	./test_gurpil_endless
 	./test_gurpil_record
+	./test_gurpil_game
 
 test_gurpil_smoke: $(OBJS_SMOKE)
 	$(CC) $(CFLAGS) -o test_gurpil_smoke $(OBJS_SMOKE)
@@ -62,6 +64,9 @@ test_gurpil_endless: $(OBJS_ENDLESS)
 
 test_gurpil_record: $(OBJS_RECORD)
 	$(CC) $(CFLAGS) -o test_gurpil_record $(OBJS_RECORD)
+
+test_gurpil_game: $(OBJS_GAME)
+	$(CC) $(CFLAGS) -o test_gurpil_game $(OBJS_GAME)
 
 version_info.o: src/domain/version_info.c include/domain/version_info.h
 	$(CC) $(CFLAGS) -c src/domain/version_info.c -o version_info.o
@@ -99,6 +104,12 @@ record.o: src/domain/record.c include/domain/record.h
 test_record.o: tests/test_record.c include/domain/record.h
 	$(CC) $(CFLAGS) -c tests/test_record.c -o test_record.o
 
+game.o: src/application/game.c include/application/game.h include/domain/sim.h include/domain/endless.h include/domain/shapes.h include/domain/terrain_kind.h
+	$(CC) $(CFLAGS) -c src/application/game.c -o game.o
+
+test_game.o: tests/test_game.c include/application/game.h include/domain/sim.h include/domain/endless.h include/domain/shapes.h include/domain/terrain.h include/domain/terrain_kind.h
+	$(CC) $(CFLAGS) -c tests/test_game.c -o test_game.o
+
 # --- format / lint ---
 FORMAT_FILES := $(shell git ls-files '*.c' '*.h' 2>/dev/null)
 ifeq ($(strip $(FORMAT_FILES)),)
@@ -114,9 +125,10 @@ linter:
 		--suppress=unusedFunction:main.c \
 		src/domain/version_info.c src/domain/shapes.c src/domain/terrain.c src/domain/sim.c \
 		src/domain/endless.c src/domain/record.c \
+		src/application/game.c \
 		src/app/gurpil_app.c main.c \
 		tests/test_smoke.c tests/test_shapes.c tests/test_terrain.c tests/test_sim.c \
-		tests/test_endless.c tests/test_record.c
+		tests/test_endless.c tests/test_record.c tests/test_game.c
 
 # --- build the .fap via the firmware tree (ufbt/fbt; not available in this sandbox) ---
 prepare:
@@ -139,4 +151,4 @@ fap: prepare clean_firmware clean
 	fi
 
 clean:
-	rm -f *.o tests/*.o test_gurpil test_gurpil_smoke test_gurpil_shapes test_gurpil_terrain test_gurpil_sim test_gurpil_endless test_gurpil_record
+	rm -f *.o tests/*.o test_gurpil test_gurpil_smoke test_gurpil_shapes test_gurpil_terrain test_gurpil_sim test_gurpil_endless test_gurpil_record test_gurpil_game
