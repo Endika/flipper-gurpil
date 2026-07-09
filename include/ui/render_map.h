@@ -43,7 +43,7 @@ enum {
     // Screen y the TALLEST terrain (TERRAIN_HEIGHT_MAX) draws at — reserves the top strip for
     // the HUD (distance/time) and the speed bar so terrain/vehicle never collide with them.
     // terrain_height_to_screen_y scales the whole height band into [PLAYFIELD_TOP_Y, BASELINE].
-    GURPIL_PLAYFIELD_TOP_Y = 24,
+    GURPIL_PLAYFIELD_TOP_Y = 30,
 };
 
 /* Maps a screen column (0..GURPIL_SCREEN_WIDTH-1) to the world x sampled by terrain_at, given
