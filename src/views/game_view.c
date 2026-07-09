@@ -69,9 +69,8 @@ enum {
 };
 
 // Checkpoint flash: a brief "+Ns" readout near the timer when a checkpoint was just crossed
-// (show_checkpoint_flash, driven by the caller's own countdown — see game_view.h). Reuses
-// ENDLESS_CHECKPOINT_BONUS_MS (endless.h) rather than a duplicated literal, so the text always
-// matches the actual bonus granted.
+// (show_checkpoint_flash, driven by the caller's own countdown — see game_view.h). Reads the
+// actual bonus granted from endless.last_bonus_ms, so the shrinking bonus shows through.
 enum {
     CHECKPOINT_FLASH_Y = HUD_TEXT_Y + 9, // just below the timer readout, same corner.
     MS_PER_SECOND = 1000,
@@ -394,13 +393,14 @@ static void render_footer_legend(Canvas *canvas, const GameState *game) {
 
 // A brief "+Ns" readout near the timer, shown while the caller's own flash countdown
 // (show_checkpoint_flash) is still running — see game_view.h's module comment for why the
-// countdown itself lives in the caller rather than here.
-static void render_checkpoint_flash(Canvas *canvas) {
+// countdown itself lives in the caller rather than here. Shows the actual (decaying) bonus the
+// last checkpoint granted (endless.last_bonus_ms), so the player sees it shrink as the run wears
+// on.
+static void render_checkpoint_flash(Canvas *canvas, uint32_t bonus_ms) {
     char text[8];
 
     canvas_set_font(canvas, FontSecondary);
-    snprintf(text, sizeof(text), CHECKPOINT_FLASH_FORMAT,
-             (long)(ENDLESS_CHECKPOINT_BONUS_MS / MS_PER_SECOND));
+    snprintf(text, sizeof(text), CHECKPOINT_FLASH_FORMAT, (long)(bonus_ms / MS_PER_SECOND));
 
     // Erase first, for the same reason render_speed_bar's own comment explains: this readout
     // sits in a row band tall terrain can now reach, so it can no longer assume blank sky behind
@@ -464,7 +464,7 @@ void gurpil_render(Canvas *canvas, const GameState *game, int32_t best, uint32_t
     render_speed_bar(canvas, game);
     render_hint_icon(canvas, game);
     if (show_checkpoint_flash) {
-        render_checkpoint_flash(canvas);
+        render_checkpoint_flash(canvas, game->endless.last_bonus_ms);
     }
 
     // Hidden once the run is over: the game-over panel already covers the screen's center (and

@@ -3,11 +3,10 @@
 #include <assert.h>
 #include <stdio.h>
 
-// ENDLESS_START_TIME_MS/ENDLESS_CHECKPOINT_BONUS_MS/ENDLESS_CHECKPOINT_SPACING/
-// ENDLESS_MAX_TIME_MS are public in endless.h (single source of truth); tests reference them
-// directly instead of mirroring the values.
+// Tuning values are public in endless.h (single source of truth); tests reference them (and the
+// endless_checkpoint_bonus_ms function) directly instead of mirroring the numbers.
 #define EXPECT_START_TIME_MS ((uint32_t)ENDLESS_START_TIME_MS)
-#define EXPECT_CHECKPOINT_BONUS_MS ((uint32_t)ENDLESS_CHECKPOINT_BONUS_MS)
+#define EXPECT_FIRST_BONUS_MS (endless_checkpoint_bonus_ms(0)) // bonus for the first checkpoint.
 #define EXPECT_CHECKPOINT_SPACING ENDLESS_CHECKPOINT_SPACING
 #define EXPECT_MAX_TIME_MS ((uint32_t)ENDLESS_MAX_TIME_MS)
 
@@ -20,6 +19,19 @@ static void test_init_sets_expected_resting_state(void) {
     assert(state.distance == 0);
     assert(state.next_checkpoint == EXPECT_CHECKPOINT_SPACING);
     assert(state.checkpoints_hit == 0);
+    assert(state.last_bonus_ms == 0);
+}
+
+static void test_checkpoint_bonus_decays_per_checkpoint_then_floors(void) {
+    // First checkpoint pays the base; each later one pays DECAY less, never below the floor.
+    assert(endless_checkpoint_bonus_ms(0) == (uint32_t)ENDLESS_CHECKPOINT_BONUS_BASE_MS);
+    assert(endless_checkpoint_bonus_ms(1) ==
+           (uint32_t)(ENDLESS_CHECKPOINT_BONUS_BASE_MS - ENDLESS_CHECKPOINT_BONUS_DECAY_MS));
+    assert(endless_checkpoint_bonus_ms(2) < endless_checkpoint_bonus_ms(1));
+
+    // Far enough out that the linear decay has undershot the floor: it clamps, never underflows.
+    uint32_t deep = (ENDLESS_CHECKPOINT_BONUS_BASE_MS / ENDLESS_CHECKPOINT_BONUS_DECAY_MS) + 100u;
+    assert(endless_checkpoint_bonus_ms(deep) == (uint32_t)ENDLESS_CHECKPOINT_BONUS_FLOOR_MS);
 }
 
 static void test_start_moves_idle_to_running(void) {
@@ -59,8 +71,9 @@ static void test_crossing_one_checkpoint_adds_bonus_and_advances_next(void) {
 
     endless_tick(&state, 100u, EXPECT_CHECKPOINT_SPACING);
 
-    uint32_t expected_time = EXPECT_START_TIME_MS - 100u + EXPECT_CHECKPOINT_BONUS_MS;
+    uint32_t expected_time = EXPECT_START_TIME_MS - 100u + EXPECT_FIRST_BONUS_MS;
     assert(state.time_left_ms == expected_time);
+    assert(state.last_bonus_ms == EXPECT_FIRST_BONUS_MS);
     assert(state.next_checkpoint == EXPECT_CHECKPOINT_SPACING * 2);
     assert(state.checkpoints_hit == 1);
     assert(state.distance == EXPECT_CHECKPOINT_SPACING);
@@ -79,12 +92,15 @@ static void test_crossing_several_checkpoints_in_one_tick(void) {
     assert(state.time_left_ms == drained_time);
     assert(state.phase == EndlessRunning);
 
-    // A single big distance jump spanning 3 checkpoint spacings must grant 3 bonuses.
+    // A single big distance jump spanning 3 checkpoint spacings must grant 3 bonuses, each the
+    // decaying value for its own checkpoint index (0, 1, 2).
     int32_t jump_distance = EXPECT_CHECKPOINT_SPACING * 3;
     endless_tick(&state, 0u, jump_distance);
 
-    uint32_t expected_time = drained_time + EXPECT_CHECKPOINT_BONUS_MS * 3u;
+    uint32_t expected_time = drained_time + endless_checkpoint_bonus_ms(0) +
+                             endless_checkpoint_bonus_ms(1) + endless_checkpoint_bonus_ms(2);
     assert(state.time_left_ms == expected_time);
+    assert(state.last_bonus_ms == endless_checkpoint_bonus_ms(2));
     assert(state.next_checkpoint == EXPECT_CHECKPOINT_SPACING * 4);
     assert(state.checkpoints_hit == 3);
     assert(state.distance == jump_distance);
@@ -180,6 +196,9 @@ static void test_tick_while_over_does_nothing_beyond_freeze(void) {
 int main(void) {
     test_init_sets_expected_resting_state();
     printf("test_init_sets_expected_resting_state: PASS\n");
+
+    test_checkpoint_bonus_decays_per_checkpoint_then_floors();
+    printf("test_checkpoint_bonus_decays_per_checkpoint_then_floors: PASS\n");
 
     test_start_moves_idle_to_running();
     printf("test_start_moves_idle_to_running: PASS\n");
