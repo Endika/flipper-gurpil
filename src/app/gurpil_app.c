@@ -30,12 +30,25 @@
  * `game`, `best` and `game_over_handled` are touched from three different contexts — the timer
  * service thread (tick), the app's own thread (input handling), and the GUI thread (the draw
  * callback) — so every access to them goes through `mutex`.
+ *
+ * `screen` gates the whole run: the app boots into AppScreenStart, where gurpil_render_start
+ * shows the title, the controls legend and an "OK: start" prompt — and timer_cb does not call
+ * game_tick at all, so the endless countdown is not yet live. Only leaving the start screen
+ * (any D-pad key or Ok) calls start_new_run, which flips to AppScreenPlaying and is the one
+ * place the countdown actually starts. From game-over, Ok returns to AppScreenStart rather than
+ * restarting straight away, so the legend — and the fact that the timer is not running — is
+ * always visible again before a new run's clock starts ticking.
  */
 
 enum {
     GURPIL_TICK_MS = 33, // fixed sim step, ms (~30 FPS); also the FuriTimer period.
     GURPIL_INPUT_QUEUE_SIZE = 8,
 };
+
+typedef enum {
+    AppScreenStart,   // title + controls legend; game_tick never runs here.
+    AppScreenPlaying, // the run itself, including its game-over overlay.
+} AppScreen;
 
 typedef struct {
     Gui *gui;
@@ -44,7 +57,9 @@ typedef struct {
     FuriMutex *mutex;
     FuriTimer *timer;
 
+    AppScreen screen;
     GameState game;
+    uint32_t frame; // per-tick counter driving the wheel-spin animation; reset per run.
     int32_t best;
     bool game_over_handled; // true once the current run's game-over has been scored/saved, so
                             // the transition fires exactly once per run.
@@ -54,7 +69,11 @@ typedef struct {
 static void render_cb(Canvas *canvas, void *ctx) {
     GurpilApp *app = ctx;
     furi_mutex_acquire(app->mutex, FuriWaitForever);
-    gurpil_render(canvas, &app->game, app->best);
+    if (app->screen == AppScreenStart) {
+        gurpil_render_start(canvas);
+    } else {
+        gurpil_render(canvas, &app->game, app->best, app->frame);
+    }
     furi_mutex_release(app->mutex);
 }
 
@@ -100,8 +119,13 @@ static void timer_cb(void *ctx) {
     GurpilApp *app = ctx;
 
     furi_mutex_acquire(app->mutex, FuriWaitForever);
-    if (!game_is_over(&app->game)) {
+    // Ticking (and with it, the wheel-spin frame counter) is gated on AppScreenPlaying: the
+    // endless countdown must not run at all while the start screen is up, and freezes — frame
+    // included, so the wheel doesn't keep spinning behind the game-over overlay — once
+    // game_is_over is true.
+    if (app->screen == AppScreenPlaying && !game_is_over(&app->game)) {
         game_tick(&app->game, GURPIL_TICK_MS);
+        app->frame++;
         if (game_is_over(&app->game)) {
             handle_game_over_once(app);
         }
@@ -111,23 +135,48 @@ static void timer_cb(void *ctx) {
     view_port_update(app->view_port); // redraw every tick, never only on input.
 }
 
-// Starts a brand-new run: fresh RNG seed, sim/endless/shape reset via game_start. Caller holds
-// `app->mutex`.
+// Starts a brand-new run: fresh RNG seed, sim/endless/shape reset via game_start, animation
+// frame counter back to 0. Caller holds `app->mutex`.
 static void start_new_run(GurpilApp *app) {
     game_start(&app->game, platform_random_seed());
+    app->frame = 0;
     app->game_over_handled = false;
+}
+
+// True for the D-pad/Ok keys that leave the start screen and launch a run; false for Back (which
+// quits from anywhere, handled separately) and Other.
+static bool gurpil_key_starts_run(GurpilKey key) {
+    switch (key) {
+        case GurpilKeyUp:
+        case GurpilKeyRight:
+        case GurpilKeyDown:
+        case GurpilKeyLeft:
+        case GurpilKeyOk:
+            return true;
+        case GurpilKeyBack:
+        case GurpilKeyOther:
+        default:
+            return false;
+    }
 }
 
 static void handle_input(GurpilApp *app, const InputEvent *event) {
     GurpilKey key = gurpil_key_from_input(event->key);
 
     if (event->type == InputTypePress) {
-        // Immediate feedback for shape selection: react on press, not on release+debounce
-        // (InputTypeShort) — a reflex game can't afford that latency. shape_for_input_key
-        // returns ShapeCount (ignored by game_set_shape's own range guard) for Ok/Back/Other,
-        // so this is safe to call unconditionally for every key.
         furi_mutex_acquire(app->mutex, FuriWaitForever);
-        game_set_shape(&app->game, shape_for_input_key(key));
+        if (app->screen == AppScreenStart) {
+            if (gurpil_key_starts_run(key)) {
+                start_new_run(app);
+                app->screen = AppScreenPlaying;
+            }
+        } else {
+            // Immediate feedback for shape selection: react on press, not on release+debounce
+            // (InputTypeShort) — a reflex game can't afford that latency. shape_for_input_key
+            // returns ShapeCount (ignored by game_set_shape's own range guard) for Ok/Back/
+            // Other, so this is safe to call unconditionally for every key.
+            game_set_shape(&app->game, shape_for_input_key(key));
+        }
         furi_mutex_release(app->mutex);
         return;
     }
@@ -143,8 +192,8 @@ static void handle_input(GurpilApp *app, const InputEvent *event) {
 
     if (key == GurpilKeyOk) {
         furi_mutex_acquire(app->mutex, FuriWaitForever);
-        if (game_is_over(&app->game)) {
-            start_new_run(app);
+        if (app->screen == AppScreenPlaying && game_is_over(&app->game)) {
+            app->screen = AppScreenStart;
         }
         furi_mutex_release(app->mutex);
     }
@@ -162,9 +211,13 @@ static GurpilApp *gurpil_app_alloc(void) {
     app->input_queue = furi_message_queue_alloc(GURPIL_INPUT_QUEUE_SIZE, sizeof(InputEvent));
     app->running = true;
 
+    app->screen = AppScreenStart;
     app->best = best_store_load();
     app->game_over_handled = false;
-    game_start(&app->game, platform_random_seed());
+    app->frame = 0;
+    game_start(&app->game, platform_random_seed()); // valid initial state; start_new_run reseeds
+                                                    // it for real once the player leaves the
+                                                    // start screen — see handle_input.
 
     view_port_draw_callback_set(app->view_port, render_cb, app);
     view_port_input_callback_set(app->view_port, input_cb, app);
