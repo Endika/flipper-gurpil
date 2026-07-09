@@ -397,7 +397,9 @@ static void render_footer_legend(Canvas *canvas, const GameState *game) {
 // last checkpoint granted (endless.last_bonus_ms), so the player sees it shrink as the run wears
 // on.
 static void render_checkpoint_flash(Canvas *canvas, uint32_t bonus_ms) {
-    char text[8];
+    // Sized for "+%lds" over a runtime bonus (the value is small, but the compiler bounds the
+    // format at 10 bytes and the firmware build treats format-truncation as an error).
+    char text[12];
 
     canvas_set_font(canvas, FontSecondary);
     snprintf(text, sizeof(text), CHECKPOINT_FLASH_FORMAT, (long)(bonus_ms / MS_PER_SECOND));
