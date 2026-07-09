@@ -3,6 +3,8 @@
 Flipper Zero adaptation of the web game [Gurpil](https://github.com/Endika/gurpil): an endless
 side-scroller where you pick your wheel shape on the fly to match the terrain and go faster.
 
+![Gurpil on Flipper Zero — the rider on the scooter rolling over the terrain, distance and timer on top, control legend on the bottom](assets/game.png)
+
 ## How to play
 
 Press the D-pad to switch your wheel shape at any time:
