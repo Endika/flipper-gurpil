@@ -12,7 +12,10 @@ uint8_t terrain_height_to_screen_y(int16_t height) {
     } else if (height > TERRAIN_HEIGHT_MAX) {
         height = TERRAIN_HEIGHT_MAX;
     }
-    return (uint8_t)(GURPIL_GROUND_BASELINE_Y - height);
+    // Scale the whole [0, TERRAIN_HEIGHT_MAX] band into [PLAYFIELD_TOP_Y, BASELINE] so the
+    // tallest terrain tops out at PLAYFIELD_TOP_Y — leaving the top strip clear for the HUD.
+    int32_t span = GURPIL_GROUND_BASELINE_Y - GURPIL_PLAYFIELD_TOP_Y;
+    return (uint8_t)(GURPIL_GROUND_BASELINE_Y - ((int32_t)height * span) / TERRAIN_HEIGHT_MAX);
 }
 
 ShapeId shape_for_input_key(GurpilKey key) {

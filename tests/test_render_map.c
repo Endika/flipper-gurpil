@@ -27,8 +27,8 @@ static void test_world_x_can_go_negative_near_run_start(void) {
 
 static void test_height_to_screen_y_at_the_bounds(void) {
     assert(terrain_height_to_screen_y(TERRAIN_HEIGHT_MIN) == GURPIL_GROUND_BASELINE_Y);
-    assert(terrain_height_to_screen_y(TERRAIN_HEIGHT_MAX) ==
-           GURPIL_GROUND_BASELINE_Y - TERRAIN_HEIGHT_MAX);
+    // Tallest terrain tops out at the reserved playfield top (leaving the HUD strip clear).
+    assert(terrain_height_to_screen_y(TERRAIN_HEIGHT_MAX) == GURPIL_PLAYFIELD_TOP_Y);
 }
 
 static void test_height_to_screen_y_is_monotonic_decreasing(void) {
