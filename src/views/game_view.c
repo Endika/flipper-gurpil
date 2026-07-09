@@ -227,7 +227,11 @@ static void render_shape_glyph(Canvas *canvas, int32_t cx, int32_t cy, int32_t r
         case ShapeTriangle:
         case ShapeCount:
         default:
-            canvas_draw_triangle(canvas, cx, cy + r, r * 2, r * 2, CanvasDirectionBottomToTop);
+            // Hollow outline, not filled: footer button hints are filled triangles, so every
+            // wheel shape stays outline-only ("solid == button, outline == shape").
+            canvas_draw_line(canvas, cx - r, cy + r, cx + r, cy + r);
+            canvas_draw_line(canvas, cx - r, cy + r, cx, cy - r);
+            canvas_draw_line(canvas, cx + r, cy + r, cx, cy - r);
             break;
     }
 }
@@ -323,31 +327,29 @@ static void render_hint_icon(Canvas *canvas, const GameState *game) {
 }
 
 // The Back indicator: the footer's own 5th slot (see FOOTER_LEGEND_BACK_SLOT_INDEX in
-// render_map.h), telling the player what Back does from this scene — pop back to the menu
-// (SceneManager's own default unconsumed-Back handling; see gurpil_game_view.c's comment on
-// GurpilKeyBack). Just the word "Back" in FontSecondary (an earlier revision measured "Back:"
-// at 22px in this same font, comfortably inside the slot; the bare word without the colon is
-// narrower still): the footer strip is its own row (not a cramped corner panel), so a single
-// centered label reads clearly without needing a second stacked line.
+// render_map.h), telling the player Back pops to the menu. Drawn as the Flipper's own back-key
+// glyph — a left-pointing return arrow (shaft + arrowhead + an upward hook on the right) — rather
+// than the word "Back", to match how the hardware button reads on-device.
 enum {
-    // Vertically centers the label within the footer's content band (the rows below the
-    // play/footer separator line).
-    FOOTER_BACK_TEXT_Y = (FOOTER_LEGEND_CONTENT_TOP_Y + GURPIL_SCREEN_HEIGHT - 1) / 2,
+    BACK_GLYPH_HALF_WIDTH = 3, // shaft reaches +/- this from the slot center, px.
+    BACK_GLYPH_HEAD_SIZE = 2,  // arrowhead barb length, px.
+    BACK_GLYPH_HOOK_RISE = 3,  // height of the upward return hook on the shaft's right end, px.
 };
 
-static const char *const FOOTER_BACK_TEXT = "Back";
+static void render_back_glyph(Canvas *canvas, int32_t cx, int32_t cy) {
+    int32_t left = cx - BACK_GLYPH_HALF_WIDTH;
+    int32_t right = cx + BACK_GLYPH_HALF_WIDTH;
+    canvas_draw_line(canvas, left, cy, right, cy); // shaft
+    canvas_draw_line(canvas, left, cy, left + BACK_GLYPH_HEAD_SIZE, cy - BACK_GLYPH_HEAD_SIZE);
+    canvas_draw_line(canvas, left, cy, left + BACK_GLYPH_HEAD_SIZE, cy + BACK_GLYPH_HEAD_SIZE);
+    canvas_draw_line(canvas, right, cy, right, cy - BACK_GLYPH_HOOK_RISE); // return hook
+}
 
-// The in-play control legend: a horizontal strip across the bottom FOOTER (see
-// GURPIL_FOOTER_HEIGHT, render_map.h), one slot per D-pad direction pairing a direction arrow
-// with the wheel-shape glyph that direction mounts, side by side on one shared row (see
-// footer_legend_cell for the position math) — both sized up (FOOTER_LEGEND_ARROW_SIZE,
-// FOOTER_LEGEND_GLYPH_RADIUS) to actually read at a glance on-device, unlike the earlier
-// two-row-stacked layout this replaced — plus a 5th slot with the "Back" label. A thin separator
-// line marks where the (now shorter) playfield ends and the footer begins. Needs no opaque
-// background of its own: the terrain outline never reaches past GURPIL_GROUND_BASELINE_Y, above
-// the footer, so nothing ever scrolls underneath this strip. The cell for the currently mounted
-// shape gets its own highlight frame, so the player also sees their current selection at a
-// glance.
+// The in-play control legend: a horizontal strip across the bottom FOOTER, one slot per D-pad
+// direction pairing a filled direction arrow (the button) with the outline wheel-shape glyph it
+// mounts, plus a 5th slot with the Back glyph. The currently mounted shape gets a highlight frame
+// so the player sees their selection. A thin separator marks the playfield/footer boundary; the
+// terrain outline never reaches past GURPIL_GROUND_BASELINE_Y, so nothing scrolls under the strip.
 static void render_footer_legend(Canvas *canvas, const GameState *game) {
     canvas_draw_line(canvas, 0, GURPIL_FOOTER_TOP_Y, GURPIL_SCREEN_WIDTH - 1, GURPIL_FOOTER_TOP_Y);
 
@@ -386,9 +388,8 @@ static void render_footer_legend(Canvas *canvas, const GameState *game) {
         }
     }
 
-    canvas_set_font(canvas, FontSecondary);
-    canvas_draw_str_aligned(canvas, footer_legend_slot_center_x(FOOTER_LEGEND_BACK_SLOT_INDEX),
-                            FOOTER_BACK_TEXT_Y, AlignCenter, AlignCenter, FOOTER_BACK_TEXT);
+    render_back_glyph(canvas, footer_legend_slot_center_x(FOOTER_LEGEND_BACK_SLOT_INDEX),
+                      FOOTER_LEGEND_ROW_Y);
 }
 
 // A brief "+Ns" readout near the timer, shown while the caller's own flash countdown
