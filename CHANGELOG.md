@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/Endika/flipper-gurpil/compare/v0.1.6...v0.1.7) (2026-07-09)
+
+
+### Bug Fixes
+
+* **game:** triple the pace and thin the time budget for a much harder, twitchier run ([ee35847](https://github.com/Endika/flipper-gurpil/commit/ee3584787e299b702b1af5df036d74afa90138c1))
+
 ## [0.1.6](https://github.com/Endika/flipper-gurpil/compare/v0.1.5...v0.1.6) (2026-07-09)
 
 
