@@ -32,17 +32,19 @@ help:
 OBJS_SMOKE = version_info.o test_smoke.o
 OBJS_SHAPES = shapes.o test_shapes.o
 OBJS_TERRAIN = terrain.o test_terrain.o
-OBJS_SIM = terrain.o shapes.o sim.o test_sim.o
+OBJS_SPEED_RAMP = speed_ramp.o test_speed_ramp.o
+OBJS_SIM = terrain.o shapes.o speed_ramp.o sim.o test_sim.o
 OBJS_ENDLESS = endless.o test_endless.o
 OBJS_RECORD = record.o test_record.o
-OBJS_GAME = terrain.o shapes.o sim.o endless.o game.o test_game.o
+OBJS_GAME = terrain.o shapes.o speed_ramp.o sim.o endless.o game.o test_game.o
 OBJS_RENDER_MAP = render_map.o test_render_map.o
-TEST_BINS = test_gurpil_smoke test_gurpil_shapes test_gurpil_terrain test_gurpil_sim test_gurpil_endless test_gurpil_record test_gurpil_game test_gurpil_render_map
+TEST_BINS = test_gurpil_smoke test_gurpil_shapes test_gurpil_terrain test_gurpil_speed_ramp test_gurpil_sim test_gurpil_endless test_gurpil_record test_gurpil_game test_gurpil_render_map
 
 test: $(TEST_BINS)
 	./test_gurpil_smoke
 	./test_gurpil_shapes
 	./test_gurpil_terrain
+	./test_gurpil_speed_ramp
 	./test_gurpil_sim
 	./test_gurpil_endless
 	./test_gurpil_record
@@ -57,6 +59,9 @@ test_gurpil_shapes: $(OBJS_SHAPES)
 
 test_gurpil_terrain: $(OBJS_TERRAIN)
 	$(CC) $(CFLAGS) -o test_gurpil_terrain $(OBJS_TERRAIN)
+
+test_gurpil_speed_ramp: $(OBJS_SPEED_RAMP)
+	$(CC) $(CFLAGS) -o test_gurpil_speed_ramp $(OBJS_SPEED_RAMP)
 
 test_gurpil_sim: $(OBJS_SIM)
 	$(CC) $(CFLAGS) -o test_gurpil_sim $(OBJS_SIM)
@@ -91,10 +96,16 @@ terrain.o: src/domain/terrain.c include/domain/terrain.h include/domain/terrain_
 test_terrain.o: tests/test_terrain.c include/domain/terrain.h include/domain/terrain_kind.h
 	$(CC) $(CFLAGS) -c tests/test_terrain.c -o test_terrain.o
 
-sim.o: src/domain/sim.c include/domain/sim.h include/domain/shapes.h include/domain/terrain.h include/domain/terrain_kind.h
+speed_ramp.o: src/domain/speed_ramp.c include/domain/speed_ramp.h
+	$(CC) $(CFLAGS) -c src/domain/speed_ramp.c -o speed_ramp.o
+
+test_speed_ramp.o: tests/test_speed_ramp.c include/domain/speed_ramp.h
+	$(CC) $(CFLAGS) -c tests/test_speed_ramp.c -o test_speed_ramp.o
+
+sim.o: src/domain/sim.c include/domain/sim.h include/domain/shapes.h include/domain/speed_ramp.h include/domain/terrain.h include/domain/terrain_kind.h
 	$(CC) $(CFLAGS) -c src/domain/sim.c -o sim.o
 
-test_sim.o: tests/test_sim.c include/domain/sim.h include/domain/shapes.h include/domain/terrain.h include/domain/terrain_kind.h
+test_sim.o: tests/test_sim.c include/domain/sim.h include/domain/shapes.h include/domain/speed_ramp.h include/domain/terrain.h include/domain/terrain_kind.h
 	$(CC) $(CFLAGS) -c tests/test_sim.c -o test_sim.o
 
 endless.o: src/domain/endless.c include/domain/endless.h
@@ -109,10 +120,10 @@ record.o: src/domain/record.c include/domain/record.h
 test_record.o: tests/test_record.c include/domain/record.h
 	$(CC) $(CFLAGS) -c tests/test_record.c -o test_record.o
 
-game.o: src/application/game.c include/application/game.h include/domain/sim.h include/domain/endless.h include/domain/shapes.h include/domain/terrain.h include/domain/terrain_kind.h
+game.o: src/application/game.c include/application/game.h include/domain/sim.h include/domain/endless.h include/domain/shapes.h include/domain/speed_ramp.h include/domain/terrain.h include/domain/terrain_kind.h
 	$(CC) $(CFLAGS) -c src/application/game.c -o game.o
 
-test_game.o: tests/test_game.c include/application/game.h include/domain/sim.h include/domain/endless.h include/domain/shapes.h include/domain/terrain.h include/domain/terrain_kind.h
+test_game.o: tests/test_game.c include/application/game.h include/domain/sim.h include/domain/endless.h include/domain/shapes.h include/domain/speed_ramp.h include/domain/terrain.h include/domain/terrain_kind.h
 	$(CC) $(CFLAGS) -c tests/test_game.c -o test_game.o
 
 render_map.o: src/ui/render_map.c include/ui/render_map.h include/domain/shapes.h include/domain/terrain.h include/domain/terrain_kind.h
@@ -139,7 +150,8 @@ linter:
 	cppcheck --enable=all --inline-suppr -I. \
 		--suppress=missingIncludeSystem \
 		--suppress=unusedFunction:main.c \
-		src/domain/version_info.c src/domain/shapes.c src/domain/terrain.c src/domain/sim.c \
+		src/domain/version_info.c src/domain/shapes.c src/domain/terrain.c \
+		src/domain/speed_ramp.c src/domain/sim.c \
 		src/domain/endless.c src/domain/record.c \
 		src/application/game.c \
 		src/platform/random_port.c \
@@ -153,7 +165,8 @@ linter:
 		src/scenes/gurpil_scene_how_to_play.c \
 		src/scenes/gurpil_scene_credits.c \
 		src/app/gurpil_app.c main.c \
-		tests/test_smoke.c tests/test_shapes.c tests/test_terrain.c tests/test_sim.c \
+		tests/test_smoke.c tests/test_shapes.c tests/test_terrain.c \
+		tests/test_speed_ramp.c tests/test_sim.c \
 		tests/test_endless.c tests/test_record.c tests/test_game.c tests/test_render_map.c
 
 # --- build the .fap via the firmware tree (ufbt/fbt; not available in this sandbox) ---
@@ -177,4 +190,4 @@ fap: prepare clean_firmware clean
 	fi
 
 clean:
-	rm -f *.o tests/*.o test_gurpil test_gurpil_smoke test_gurpil_shapes test_gurpil_terrain test_gurpil_sim test_gurpil_endless test_gurpil_record test_gurpil_game test_gurpil_render_map
+	rm -f *.o tests/*.o test_gurpil test_gurpil_smoke test_gurpil_shapes test_gurpil_terrain test_gurpil_speed_ramp test_gurpil_sim test_gurpil_endless test_gurpil_record test_gurpil_game test_gurpil_render_map

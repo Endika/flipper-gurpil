@@ -67,6 +67,11 @@ int16_t game_vehicle_y(const GameState *game);
  * theoretical max (an ideal shape on its best terrain, fully eased up to speed). */
 uint16_t game_speed_permille(const GameState *game);
 
+/* Current speed-ramp stage (1..SPEED_RAMP_MAX_STAGE) for the run's distance so far: the game
+ * opens at stage 1 (1/3 pace) and climbs to full pace by the top stage. The HUD shows this as
+ * x1/x2/x3; the sim reads the same speed_ramp_stage, so screen and pace never disagree. */
+uint8_t game_speed_stage(const GameState *game);
+
 /* True exactly when the most recent game_tick call crossed at least one checkpoint (i.e.
  * endless.checkpoints_hit increased during that call) — the trigger for a brief on-screen
  * "+Ns" flash. False before the first tick and on every tick that doesn't cross a checkpoint. */

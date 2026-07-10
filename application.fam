@@ -15,6 +15,7 @@ App(
         "src/domain/version_info.c",
         "src/domain/shapes.c",
         "src/domain/terrain.c",
+        "src/domain/speed_ramp.c",
         "src/domain/sim.c",
         "src/domain/endless.c",
         "src/domain/record.c",

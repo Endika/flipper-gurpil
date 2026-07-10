@@ -1,5 +1,6 @@
 #include "include/application/game.h"
 
+#include "include/domain/speed_ramp.h"
 #include "include/domain/terrain.h"
 
 enum {
@@ -75,6 +76,10 @@ uint16_t game_speed_permille(const GameState *game) {
         permille = GAME_SPEED_PERMILLE_SCALE;
     }
     return (uint16_t)permille;
+}
+
+uint8_t game_speed_stage(const GameState *game) {
+    return speed_ramp_stage(game_distance(game));
 }
 
 bool game_checkpoint_just_hit(const GameState *game) {

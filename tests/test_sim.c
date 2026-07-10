@@ -1,5 +1,6 @@
 #include "include/domain/shapes.h"
 #include "include/domain/sim.h"
+#include "include/domain/speed_ramp.h"
 #include "include/domain/terrain.h"
 #include "include/domain/terrain_kind.h"
 
@@ -35,6 +36,10 @@
 // Number of ticks used for the "easing takes more than one tick" check.
 #define EASE_MANY_TICKS 30
 
+// Ticks to let speed settle onto its stage target; both stay within their zone (see asserts).
+#define OPENING_PLATEAU_TICKS 25
+#define FULL_PACE_TICKS 22
+
 static void run_ticks(SimState *state, ShapeId shape, uint32_t seed, uint32_t tick_count) {
     for (uint32_t i = 0; i < tick_count; i++) {
         sim_step(state, shape, seed, TICK_MS);
@@ -66,6 +71,48 @@ static int32_t find_stable_zone_start(uint32_t seed, TerrainKind kind, int32_t s
     }
     assert(0 && "no stable zone found for requested kind/span within SEARCH_LIMIT");
     return -1;
+}
+
+// Like find_stable_zone_start, but scanning from `min_x` so the hit lands in a chosen ramp
+// stage (the opening flat zone is always stage 1, so higher stages need a floor).
+static int32_t find_stable_zone_from(uint32_t seed, TerrainKind kind, int32_t span, int32_t min_x) {
+    for (int32_t x = min_x; x < SEARCH_LIMIT; x++) {
+        int32_t offset = 0;
+        while (offset < span && terrain_at(seed, x + offset).kind == kind) {
+            offset++;
+        }
+        if (offset == span) {
+            return x;
+        }
+    }
+    assert(0 && "no stable zone found for requested kind/span/min_x within SEARCH_LIMIT");
+    return -1;
+}
+
+static void test_opening_pace_is_one_third_of_full(void) {
+    // x=0 is always flat and stage 1, so circle eases toward SIM_MAX_SPEED_FP/3, never full pace.
+    SimState state;
+    sim_init(&state);
+    run_ticks(&state, ShapeCircle, SEED_A, OPENING_PLATEAU_TICKS);
+
+    int32_t stage1_target = SIM_MAX_SPEED_FP / SPEED_RAMP_MAX_STAGE;
+    assert((state.distance_fp >> SIM_FP_SHIFT) < SPEED_RAMP_STAGE1_UNTIL);
+    assert(state.speed_fp <= stage1_target);
+    assert(state.speed_fp > stage1_target - SIM_FP_ONE);
+    assert(state.speed_fp < SIM_MAX_SPEED_FP);
+}
+
+static void test_stage_three_reaches_full_unramped_pace(void) {
+    // At stage 3 the multiplier is 3/3, so circle-on-flat climbs back to the pre-ramp top speed.
+    int32_t flat_x =
+        find_stable_zone_from(SEED_A, TerrainFlat, STABLE_SPAN, SPEED_RAMP_STAGE2_UNTIL);
+    assert(speed_ramp_stage(flat_x) == SPEED_RAMP_MAX_STAGE);
+
+    SimState state = state_at(flat_x, terrain_at(SEED_A, flat_x).height);
+    run_ticks(&state, ShapeCircle, SEED_A, FULL_PACE_TICKS);
+
+    assert(state.speed_fp <= SIM_MAX_SPEED_FP);
+    assert(state.speed_fp > SIM_MAX_SPEED_FP - SIM_FP_ONE);
 }
 
 static void test_flat_best_shape_beats_poor_shape(void) {
@@ -171,6 +218,12 @@ static void test_speed_eases_toward_target_over_ticks(void) {
 }
 
 int main(void) {
+    test_opening_pace_is_one_third_of_full();
+    printf("test_opening_pace_is_one_third_of_full: PASS\n");
+
+    test_stage_three_reaches_full_unramped_pace();
+    printf("test_stage_three_reaches_full_unramped_pace: PASS\n");
+
     test_flat_best_shape_beats_poor_shape();
     printf("test_flat_best_shape_beats_poor_shape: PASS\n");
 

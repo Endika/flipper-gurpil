@@ -1,5 +1,6 @@
 #include "include/domain/sim.h"
 
+#include "include/domain/speed_ramp.h"
 #include "include/domain/terrain.h"
 
 enum {
@@ -47,8 +48,12 @@ void sim_step(SimState *state, ShapeId shape, uint32_t seed, uint32_t dt_ms) {
     int32_t current_x = state->distance_fp >> SIM_FP_SHIFT;
     TerrainSample sample = terrain_at(seed, current_x);
 
+    // Fold the distance-driven ramp stage into the target's single division: no precision lost,
+    // and the product stays well inside int32 (max ~= 256 * (24<<8) * 3 ~= 4.7M).
+    uint8_t stage = speed_ramp_stage(current_x);
     uint16_t factor = shape_speed_factor(shape, sample.kind);
-    int32_t target_speed_fp = ((int32_t)factor * BASE_SPEED_FP) / SHAPE_FACTOR_SCALE;
+    int32_t target_speed_fp =
+        ((int32_t)factor * BASE_SPEED_FP * stage) / (SHAPE_FACTOR_SCALE * SPEED_RAMP_MAX_STAGE);
 
     state->speed_fp = ease_toward(state->speed_fp, target_speed_fp, SPEED_EASE_DIVISOR);
 

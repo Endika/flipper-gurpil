@@ -51,6 +51,18 @@ enum {
     SPEED_BAR_PERMILLE_SCALE = 1000, // matches game_speed_permille's own 0..1000 output scale.
 };
 
+// Speed-ramp tier readout ("x1"/"x2"/"x3", from game_speed_stage), just right of the speed bar
+// so the ramping pace reads as a number, not only as the bar's fill. Sits below the timer row
+// and left of the checkpoint flash, and erases its own footprint like the bar for the same
+// reachable-terrain reason.
+enum {
+    SPEED_STAGE_X = SPEED_BAR_X + SPEED_BAR_WIDTH + 2,
+    SPEED_STAGE_Y = SPEED_BAR_Y + SPEED_BAR_HEIGHT, // text baseline
+    SPEED_STAGE_ERASE_WIDTH = 12,
+    SPEED_STAGE_ERASE_HEIGHT = 7,
+};
+static const char *const SPEED_STAGE_FORMAT = "x%u";
+
 // Tutorial hint icon: the ideal shape for the upcoming terrain (game_hint_shape), shown inside a
 // small highlight frame near the HUD while game_hint_active holds. Same reachable-by-terrain row
 // band as the speed bar above, and erases its own footprint first for the same reason.
@@ -302,6 +314,21 @@ static void render_speed_bar(Canvas *canvas, const GameState *game) {
     }
 }
 
+static void render_speed_stage(Canvas *canvas, const GameState *game) {
+    // char[12], not a tight buffer: the ufbt build runs -Werror=format-truncation, which sizes
+    // "%u" for a full unsigned int regardless of the tiny stage value (see project build notes).
+    char text[12];
+    snprintf(text, sizeof(text), SPEED_STAGE_FORMAT, (unsigned)game_speed_stage(game));
+
+    canvas_set_color(canvas, ColorWhite);
+    canvas_draw_box(canvas, SPEED_STAGE_X, SPEED_STAGE_Y - SPEED_STAGE_ERASE_HEIGHT,
+                    SPEED_STAGE_ERASE_WIDTH, SPEED_STAGE_ERASE_HEIGHT);
+    canvas_set_color(canvas, ColorBlack);
+
+    canvas_set_font(canvas, FontSecondary);
+    canvas_draw_str(canvas, SPEED_STAGE_X, SPEED_STAGE_Y, text);
+}
+
 // The tutorial shape hint: while game_hint_active holds, draws the ideal upcoming shape
 // (game_hint_shape) as a small glyph inside a highlight frame, so a new player has a concrete
 // "use THIS wheel" answer instead of guessing. Reuses the same per-shape silhouettes as
@@ -464,6 +491,7 @@ void gurpil_render(Canvas *canvas, const GameState *game, int32_t best, uint32_t
     render_vehicle(canvas, game, frame);
     render_hud(canvas, game);
     render_speed_bar(canvas, game);
+    render_speed_stage(canvas, game);
     render_hint_icon(canvas, game);
     if (show_checkpoint_flash) {
         render_checkpoint_flash(canvas, game->endless.last_bonus_ms);

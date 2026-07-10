@@ -2,6 +2,7 @@
 
 #include "include/domain/shapes.h"
 #include "include/domain/sim.h"
+#include "include/domain/speed_ramp.h"
 #include "include/domain/terrain.h"
 #include "include/domain/terrain_kind.h"
 
@@ -45,6 +46,12 @@
 // to be usable (mirrors test_sim.c's own STABLE_SPAN/SEARCH_LIMIT pattern).
 #define OBSTACLE_STABLE_SPAN 12
 #define OBSTACLE_SEARCH_LIMIT 8000
+
+// A flat span long enough that SPEED_RAMP_TICK_COUNT ticks at full pace stay inside the zone.
+#define FLAT_STABLE_SPAN 16
+
+// Ticks of smart play driven to push the run past the first ramp threshold (out of stage 1).
+#define SPEED_STAGE_DRIVE_TICKS 300u
 
 // Drives `game` for up to `ticks`, each tick mounting the best shape for the current terrain.
 static void run_smart_for(GameState *game, uint32_t seed, uint32_t ticks) {
@@ -153,16 +160,48 @@ static int32_t find_stable_obstacle_start(uint32_t seed, int32_t span) {
     return -1;
 }
 
+// Scans from min_x for the first x with TerrainFlat stable for `span` positions — mirrors
+// find_stable_obstacle_start, used to place the vehicle in a stage-3 flat zone.
+static int32_t find_stable_flat_from(uint32_t seed, int32_t span, int32_t min_x) {
+    for (int32_t x = min_x; x < OBSTACLE_SEARCH_LIMIT; x++) {
+        int32_t offset = 0;
+        while (offset < span && terrain_at(seed, x + offset).kind == TerrainFlat) {
+            offset++;
+        }
+        if (offset == span) {
+            return x;
+        }
+    }
+    assert(0 && "no stable flat zone found within OBSTACLE_SEARCH_LIMIT");
+    return -1;
+}
+
 static void test_speed_permille_is_high_for_a_best_matched_shape(void) {
+    // The ramp caps the opening at 1/3, so a full bar is only reachable at full pace (stage 3);
+    // jump to a flat stage-3 zone where circle (flat's best shape) fills it.
+    int32_t flat_x = find_stable_flat_from(SEED_A, FLAT_STABLE_SPAN, SPEED_RAMP_STAGE2_UNTIL);
+
     GameState game;
     game_start(&game, SEED_A);
-    // x=0's opening zone is always flat, and circle is flat's best shape.
+    game.sim.distance_fp = flat_x << SIM_FP_SHIFT;
+    game.sim.vehicle_y = terrain_at(SEED_A, flat_x).height;
     game_set_shape(&game, ShapeCircle);
     for (uint32_t i = 0; i < SPEED_RAMP_TICK_COUNT; i++) {
         game_tick(&game, TICK_MS);
     }
 
     assert(game_speed_permille(&game) > SPEED_PERMILLE_HIGH_THRESHOLD);
+}
+
+static void test_speed_stage_matches_ramp_and_climbs_out_of_the_opening(void) {
+    GameState game;
+    game_start(&game, SEED_A);
+    assert(game_speed_stage(&game) == 1);
+
+    run_smart_for(&game, SEED_A, SPEED_STAGE_DRIVE_TICKS);
+    assert(game_speed_stage(&game) == speed_ramp_stage(game_distance(&game)));
+    assert(game_distance(&game) >= SPEED_RAMP_STAGE1_UNTIL);
+    assert(game_speed_stage(&game) >= 2);
 }
 
 static void test_speed_permille_is_near_zero_for_a_stalled_shape(void) {
@@ -260,6 +299,9 @@ int main(void) {
 
     test_speed_permille_is_near_zero_for_a_stalled_shape();
     printf("test_speed_permille_is_near_zero_for_a_stalled_shape: PASS\n");
+
+    test_speed_stage_matches_ramp_and_climbs_out_of_the_opening();
+    printf("test_speed_stage_matches_ramp_and_climbs_out_of_the_opening: PASS\n");
 
     test_checkpoint_just_hit_is_true_only_on_the_crossing_tick();
     printf("test_checkpoint_just_hit_is_true_only_on_the_crossing_tick: PASS\n");

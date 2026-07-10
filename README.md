@@ -20,6 +20,9 @@ Each shape is best on a different terrain (flat, rocky, uphill, obstacle) — ma
 ground ahead to keep your speed up. Reach checkpoints to earn extra time and push your best
 distance. The run is endless: it only ends when time runs out.
 
+The pace ramps up as you go: a run opens at a gentle **x1**, then builds to **x2** and **x3**
+(the full speed) the further you get — the current tier shows next to the speed bar.
+
 ## Controls
 
 **Menu**
