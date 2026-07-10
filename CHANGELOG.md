@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/Endika/flipper-gurpil/compare/v0.1.7...v0.1.8) (2026-07-10)
+
+
+### Features
+
+* **sim:** ramp run speed 1x-&gt;3x by distance ([4d23ae2](https://github.com/Endika/flipper-gurpil/commit/4d23ae206a1c9fd48669c190df2dd5ba13074080))
+
 ## [0.1.7](https://github.com/Endika/flipper-gurpil/compare/v0.1.6...v0.1.7) (2026-07-09)
 
 
