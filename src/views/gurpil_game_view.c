@@ -104,7 +104,7 @@ GurpilGameView *gurpil_game_view_alloc(ViewDispatcher *view_dispatcher) {
     instance->view_dispatcher = view_dispatcher;
     instance->view = view_alloc();
     view_allocate_model(instance->view, ViewModelTypeLocking, sizeof(GurpilGameViewModel));
-    view_set_context(instance->view, instance);
+    view_set_context(instance->view);
     view_set_draw_callback(instance->view, gurpil_game_view_draw_callback);
     view_set_input_callback(instance->view, gurpil_game_view_input_callback);
 
