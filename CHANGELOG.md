@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/Endika/flipper-gurpil/compare/v0.1.8...v0.1.9) (2026-09-05)
+
+
+### Bug Fixes
+
+* make cppcheck clean under 2.21 ([267da0d](https://github.com/Endika/flipper-gurpil/commit/267da0d11f5c4b1ab6547badac50346f6252fa46))
+
 ## [0.1.8](https://github.com/Endika/flipper-gurpil/compare/v0.1.7...v0.1.8) (2026-07-10)
 
 
