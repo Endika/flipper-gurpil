@@ -25,7 +25,7 @@ static bool gurpil_app_navigation_event_callback(void *context) {
 
 static GurpilApp *gurpil_app_alloc(void) {
     GurpilApp *app = malloc(sizeof(GurpilApp));
-    furi_check(app != NULL);
+    furi_check(app);
 
     app->gui = furi_record_open(RECORD_GUI);
     app->best = best_store_load();
