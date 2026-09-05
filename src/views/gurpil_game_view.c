@@ -38,7 +38,7 @@ struct GurpilGameView {
 };
 
 static void gurpil_game_view_draw_callback(Canvas *canvas, void *model) {
-    const GurpilGameViewModel *m = model;
+    GurpilGameViewModel *m = model;
     gurpil_render(canvas, &m->game, m->best, m->frame, m->checkpoint_flash_remaining_ms > 0,
                   m->is_new_best);
 }
@@ -99,7 +99,7 @@ static bool gurpil_game_view_input_callback(InputEvent *event, void *context) {
 
 GurpilGameView *gurpil_game_view_alloc(ViewDispatcher *view_dispatcher) {
     GurpilGameView *instance = malloc(sizeof(GurpilGameView));
-    furi_check(instance != NULL);
+    furi_check(instance);
 
     instance->view_dispatcher = view_dispatcher;
     instance->view = view_alloc();

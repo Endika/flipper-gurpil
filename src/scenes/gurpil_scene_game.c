@@ -41,10 +41,10 @@ void gurpil_scene_game_on_enter(void *context) {
 }
 
 bool gurpil_scene_game_on_event(void *context, SceneManagerEvent event) {
-    GurpilApp *app = context;
     bool consumed = false;
 
     if (event.type == SceneManagerEventTypeCustom && event.event == GurpilGameEventReturnToMenu) {
+        GurpilApp *app = context;
         scene_manager_previous_scene(app->scene_manager);
         consumed = true;
     }
