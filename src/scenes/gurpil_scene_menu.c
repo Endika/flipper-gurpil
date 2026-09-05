@@ -30,10 +30,10 @@ void gurpil_scene_menu_on_enter(void *context) {
 }
 
 bool gurpil_scene_menu_on_event(void *context, SceneManagerEvent event) {
-    GurpilApp *app = context;
     bool consumed = false;
 
     if (event.type == SceneManagerEventTypeCustom) {
+        GurpilApp *app = context;
         consumed = true;
         switch (event.event) {
             case GurpilMenuIndexPlay:
