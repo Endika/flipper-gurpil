@@ -139,6 +139,63 @@ static void test_update_negative_to_zero_stays_zero(void) {
     assert(result == 0);
 }
 
+static void test_is_valid_true_for_serialized(void) {
+    uint8_t buf[RECORD_BYTES];
+    record_serialize(42, buf, sizeof(buf));
+    assert(record_is_valid(buf, sizeof(buf)));
+}
+
+static void test_is_valid_false_for_short_buffer(void) {
+    uint8_t buf[RECORD_BYTES];
+    record_serialize(42, buf, sizeof(buf));
+    assert(!record_is_valid(buf, RECORD_BYTES - 1));
+}
+
+static void test_is_valid_false_for_bad_magic(void) {
+    uint8_t buf[RECORD_BYTES];
+    record_serialize(42, buf, sizeof(buf));
+    buf[0] = 0x00;
+    assert(!record_is_valid(buf, sizeof(buf)));
+}
+
+static void test_is_valid_false_for_bad_version(void) {
+    uint8_t buf[RECORD_BYTES];
+    record_serialize(42, buf, sizeof(buf));
+    buf[1] = 0x02;
+    assert(!record_is_valid(buf, sizeof(buf)));
+}
+
+static void test_is_valid_false_for_null(void) {
+    assert(!record_is_valid(NULL, RECORD_BYTES));
+}
+
+// Missing save data: no candidate slot has been taken yet, so the first quarantine goes to
+// slot 0 and nothing pre-empts a future save.
+static void test_backup_slot_picks_first_free(void) {
+    bool none_taken[RECORD_BACKUP_SLOTS] = {0};
+    assert(record_backup_slot(none_taken) == 0);
+}
+
+// A second corruption, arriving while the first backup still exists, must move to the next
+// free slot instead of overwriting it (keeps the first copy).
+static void test_backup_slot_skips_taken_slots(void) {
+    bool taken[RECORD_BACKUP_SLOTS] = {0};
+    int first = record_backup_slot(taken);
+    assert(first == 0);
+    taken[first] = true;
+
+    int second = record_backup_slot(taken);
+    assert(second == 1);
+}
+
+static void test_backup_slot_all_taken_returns_negative(void) {
+    bool all_taken[RECORD_BACKUP_SLOTS];
+    for (int i = 0; i < RECORD_BACKUP_SLOTS; i++) {
+        all_taken[i] = true;
+    }
+    assert(record_backup_slot(all_taken) == -1);
+}
+
 static void test_update_larger_increases_record(void) {
     int32_t prev = 0;
     int32_t result = record_update(prev, 1);
@@ -181,6 +238,30 @@ int main(void) {
 
     test_parse_does_not_read_past_record_bytes();
     printf("test_parse_does_not_read_past_record_bytes: PASS\n");
+
+    test_is_valid_true_for_serialized();
+    printf("test_is_valid_true_for_serialized: PASS\n");
+
+    test_is_valid_false_for_short_buffer();
+    printf("test_is_valid_false_for_short_buffer: PASS\n");
+
+    test_is_valid_false_for_bad_magic();
+    printf("test_is_valid_false_for_bad_magic: PASS\n");
+
+    test_is_valid_false_for_bad_version();
+    printf("test_is_valid_false_for_bad_version: PASS\n");
+
+    test_is_valid_false_for_null();
+    printf("test_is_valid_false_for_null: PASS\n");
+
+    test_backup_slot_picks_first_free();
+    printf("test_backup_slot_picks_first_free: PASS\n");
+
+    test_backup_slot_skips_taken_slots();
+    printf("test_backup_slot_skips_taken_slots: PASS\n");
+
+    test_backup_slot_all_taken_returns_negative();
+    printf("test_backup_slot_all_taken_returns_negative: PASS\n");
 
     test_update_keeps_max();
     printf("test_update_keeps_max: PASS\n");
