@@ -169,7 +169,7 @@ linter:
 		tests/test_speed_ramp.c tests/test_sim.c \
 		tests/test_endless.c tests/test_record.c tests/test_game.c tests/test_render_map.c
 
-# --- build the .fap via the firmware tree (ufbt/fbt; not available in this sandbox) ---
+# --- build the .fap via the firmware tree (ufbt/fbt) ---
 prepare:
 	@if [ -d "$(FLIPPER_FIRMWARE_PATH)" ]; then \
 		mkdir -p $(FLIPPER_FIRMWARE_PATH)/applications_user; \
