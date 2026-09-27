@@ -7,9 +7,7 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+        # Majors stay out of the group: each one arrives as its own PR, merged by hand.
+        update-types: ["minor", "patch"]
     commit-message:
       prefix: chore
-    # Only patch & minor are proposed; do majors manually when ready.
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
